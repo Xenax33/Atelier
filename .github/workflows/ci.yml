@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ruff
+        run: pip install ruff
+      - name: Lint
+        run: ruff check .
+      # `ruff format --check` is intentionally not a hard gate yet (scaffold phase).
+      # Contributors run `ruff format .` locally - see CONTRIBUTING.md. Tighten to a
+      # gate once the codebase has real modules.
+
+  test:
+    name: Tests (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pytest
+        run: pip install pytest
+      - name: Run tests (tolerate none during scaffold)
+        shell: bash
+        run: |
+          set +e
+          pytest -q
+          code=$?
+          if [ "$code" -eq 5 ]; then
+            echo "::notice::No tests collected yet - acceptable during Phase 0."
+            exit 0
+          fi
+          exit "$code"

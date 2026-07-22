@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 Project context & architecture
+    url: https://github.com/Xenax33/Atelier/blob/main/CONTEXT.md
+    about: Read CONTEXT.md, docs/ARCHITECTURE.md, and docs/adr/ first - many "why" questions are answered there.
+  - name: 🖥️ Hardware constraints (AMD gfx1010 / 8 GB)
+    url: https://github.com/Xenax33/Atelier/blob/main/docs/HARDWARE.md
+    about: Before reporting GPU/inference issues, check the known RX 5700 XT constraints and the ROCm caveat.

@@ -1,0 +1,59 @@
+# --- secrets ---
+.env
+*.key
+*.pem
+secrets/
+*.sops.yaml.dec
+
+# --- python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# --- databases / state ---
+*.db
+*.db-wal
+*.db-shm
+atelier.db
+state/runs/*/
+!state/runs/.gitkeep
+
+# --- generated assets / renders (large binaries) ---
+*.wav
+*.mp3
+*.mp4
+*.mov
+*.png
+*.jpg
+*.jpeg
+*.webp
+assets/
+render/
+
+# --- models (never commit weights) ---
+models/
+*.gguf
+*.safetensors
+*.onnx
+*.ckpt
+
+# --- tooling / os ---
+.idea/
+.vscode/
+*.log
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# --- comfyui / zluda scratch ---
+ComfyUI/
+comfyui_zluda/
+*.venv-snapshot.zip

@@ -1,0 +1,49 @@
+name: 🐛 Bug report
+description: Report something that isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report! Please check [CONTEXT.md](../blob/main/CONTEXT.md) and
+        [docs/HARDWARE.md](../blob/main/docs/HARDWARE.md) first - GPU/ROCm and VRAM issues are often expected.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `./start-day.ps1`
+        2. In Discord, `/new-short ...`
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: stage
+    attributes:
+      label: Which pipeline stage / component?
+      placeholder: "e.g. llama.cpp gateway, ComfyUI-Zluda, fact-checker, assembler, discord bot"
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, GPU + driver, Python version, and which model servers were running.
+      placeholder: |
+        - OS: Windows 11
+        - GPU: RX 5700 XT (gfx1010), driver 25.x
+        - Python: 3.12
+        - Servers up: llama.cpp Vulkan (8080), ComfyUI-Zluda (8188)
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste logs/tracebacks. **Redact any tokens/secrets.**
+      render: shell
