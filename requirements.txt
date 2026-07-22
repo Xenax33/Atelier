@@ -1,0 +1,50 @@
+# Atelier/1 core Python deps. Pin exact versions in your lockfile once Phase 0 lands.
+# GPU model servers (llama.cpp Vulkan, ComfyUI-Zluda) are installed SEPARATELY as native
+# Windows processes — they are NOT pip deps. See docs/STACK.md.
+
+# --- control plane ---
+discord.py>=2.6,<3.0
+
+# --- orchestration (MIT core ONLY; do NOT add langgraph-api / LangGraph Platform) ---
+langgraph>=0.2
+langgraph-checkpoint-sqlite>=2.0
+
+# --- model gateway / LLM client ---
+openai>=1.40            # used only as an OpenAI-compatible client against the LOCAL gateway
+litellm>=1.40           # optional: drop-in proxy for the gateway seam
+
+# --- tts ---
+kokoro-onnx>=0.3        # CPU narration (Apache-2.0 voices)
+
+# --- captions ---
+whisperx>=3.1           # word-level timestamps (or faster-whisper)
+
+# --- assembly ---
+moviepy>=1.0.3          # ffmpeg wrapper; ffmpeg binary installed separately
+
+# --- diagrams / motion ---
+manim>=0.18             # Community Edition
+matplotlib>=3.8
+# depth-anything-v2 is run via its own repo/weights, not pip — see STACK.md
+
+# --- memory / retrieval ---
+sqlite-vec>=0.1
+sentence-transformers>=3.0   # bge-m3 / bge-small on CPU
+
+# --- research tools ---
+httpx>=0.27
+SPARQLWrapper>=2.0      # Wikidata (CC-0)
+
+# --- publishing ---
+google-api-python-client>=2.130
+google-auth-oauthlib>=1.2
+
+# --- observability ---
+traceloop-sdk>=0.30    # OpenLLMetry (OTel); view in Phoenix
+
+# --- config / dev ---
+pydantic>=2.7
+pydantic-settings>=2.3
+python-dotenv>=1.0
+ruff>=0.5
+pytest>=8.2
