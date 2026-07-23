@@ -57,3 +57,6 @@ desktop.ini
 ComfyUI/
 comfyui_zluda/
 *.venv-snapshot.zip
+
+# --- local runtime binaries (llama.cpp etc.) ---
+bin/

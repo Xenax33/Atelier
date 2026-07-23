@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-This project is pre-release (Phase 0). Only the `main` branch is supported; there are no released versions yet.
+This project is pre-release (Phase 0). Only the `master` branch is supported; there are no released versions yet.
 
 ## Reporting a vulnerability
 

@@ -27,6 +27,8 @@ Expected green state (target):
 
 | Symptom | Cause | Fix |
 |---|---|---|
+| llama-server dies instantly: "error: invalid argument: Projects\..." | Repo path contains a space ("Side Projects") and PS 5.1 `Start-Process -ArgumentList` does not quote args | Embed quotes around every path argument: `"-m", "``"$Root\models\file.gguf``""`. Already fixed in start-day.ps1; copy that pattern. |
+| pip: NameResolutionError / ResolutionImpossible listing every version of a package | Transient DNS failure mid-install (often while big downloads saturate the link), not a real conflict | Re-run in staged groups with `--retries 10 --timeout 60`; check `Resolve-DnsName files.pythonhosted.org` first |
 | Torch/ROCm build errors, silent CPU fallback | Someone tried ROCm/vLLM on gfx1010 | Don't. Vulkan/ZLUDA only. (ADR-0001) |
 | OOM during image gen | Two heavy GPU stages co-resident | Serialize; unload before SDXL. (HARDWARE.md) |
 | ComfyUI-Zluda stopped working after an update | Triton/flash-attn drift | Restore the venv snapshot. (STACK.md) |
@@ -35,7 +37,8 @@ Expected green state (target):
 | YouTube upload forced to private / rejected | Unverified project / quota / policy | Private-draft is by design; verify project; check quota |
 
 ## Boot-time TODOs (Phase 0)
-- [ ] TASK-001: real llama.cpp Vulkan launch command here.
+- [x] TASK-001: llama gateway wired into start-day.ps1 (Qwen3-4B-Instruct-2507, b10092 Vulkan, 93 tok/s).
+      Smoke: `python scripts/smoke_llm.py` (server must be up).
 - [ ] TASK-002: real ComfyUI-Zluda launch command + venv snapshot location here.
-- [ ] TASK-003: Kokoro smoke test command.
+- [x] TASK-003: Kokoro smoke: `.venv\Scripts\python scripts/smoke_tts.py` (2.8x realtime CPU, af_heart).
 - [ ] TASK-006: Discord "stack ready" webhook wiring.

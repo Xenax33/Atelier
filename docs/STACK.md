@@ -3,13 +3,27 @@
 Every **generative/model** pick is monetization-safe by construction (Apache-2.0 / MIT / OpenRAIL++ / CC-0).
 Runtime/infra licenses never touch a published frame. Full rationale: `ARCHITECTURE.md` §3.
 
+## Pinned artifacts (verified + downloaded 2026-07-23)
+
+| Artifact | Pinned version | Location | Notes |
+|---|---|---|---|
+| llama.cpp | **b10092** win-vulkan-x64 | `bin/llama-b10092/` | Vulkan detects the 5700 XT (8176 MiB). Includes the Feb/Mar 2026 AMD FA + graphics-queue fixes. Do NOT swap to Ollama (its vendored llama.cpp lags these fixes by ~56% t/s). |
+| **PRIMARY brain** | **Qwen3-4B-Instruct-2507 UD-Q4_K_XL** (2.37 GB, Apache-2.0) | `models/Qwen3-4B-Instruct-2507-UD-Q4_K_XL.gguf` | **Measured 2026-07-23: 670 tok/s pp512, 93 tok/s tg128 (FA off).** Passed schema-JSON + tool-call smoke clean. Instruct-native, 262k ctx, big VRAM headroom. |
+| Fallback brain (A/B) | Qwen3-8B Q4_K_M (4.68 GB, Apache-2.0) | `models/Qwen3-8B-Q4_K_M.gguf` | Measured: 375 pp / 59 tg. FAILED schema-JSON smoke out of the box (hybrid-thinking emits think-tokens; needs chat_template_kwargs plumbing). Keep for quality A/B only. |
+| Kokoro TTS | **v1.0 f32 onnx** (310.5 MB) + voices (26.9 MB) | `models/tts/` | **Measured 2026-07-23: 56.3s narration in 20.3s on CPU (2.8x realtime)**, voice af_heart. `scripts/smoke_tts.py`. |
+| Python | **3.12.10** + `.venv/` | repo root | 3.12 is the ceiling-safe pick: whisperx + kokoro-onnx require <3.14; manim needs >=3.11. Torch is CPU-only wheels (never CUDA on this box). |
+| Deferred (TASK-008) | Qwen3-30B-A3B-Instruct-2507 UD-Q4_K_XL (17.7 GB) | not downloaded | After the RAM upgrade. Reality check from research: DDR4 caps it at ~12-15 tok/s (the ~30 figure is DDR5-class), so benchmark before re-committing (ADR-0002). |
+
+Notable deviation: captions start with **faster-whisper** (lighter; word timestamps built in). whisperx
+(forced alignment) comes in when the captions worker is built, since we align against a KNOWN script.
+
 ## Core picks
 
 | Layer | Pick | License (published-frame relevance) |
 |---|---|---|
 | LLM runtime | **llama.cpp Vulkan server** (prebuilt vulkan release) | MIT (infra) |
-| Primary brain | **Qwen3-30B-A3B Q4_K_M** `--cpu-moe` | **Apache-2.0 -> safe** |
-| Fast-lane brain | **Qwen3-8B Q4_K_M** (in VRAM) | Apache-2.0 -> safe |
+| Primary brain (now) | **Qwen3-8B Q4_K_M** fully in VRAM (ADR-0011, 16 GB RAM reality) | **Apache-2.0 -> safe** |
+| Primary brain (after RAM upgrade) | **Qwen3-30B-A3B Q4_K_M** `--cpu-moe` (ADR-0002, reinstated by config) | Apache-2.0 -> safe |
 | Structured output | GBNF / JSON-schema constrained decoding | technique |
 | Model gateway | **LiteLLM proxy** or ~150-line FastAPI facade | MIT (infra) |
 | TTS default | **Kokoro-82M** via `kokoro-onnx` (CPU) | **Apache-2.0 -> safe** |

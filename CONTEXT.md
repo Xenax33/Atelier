@@ -3,7 +3,7 @@
 **READ ME FIRST.** This is the living state pointer for the project. If you are a new session,
 a fresh agent, or a returning human, read this file top-to-bottom, then follow the links.
 
-_Last updated: 2026-07-22 by session-bootstrap (initial scaffold)._
+_Last updated: 2026-07-23 (Phase 0 build start; hardware audit corrected RAM to 16 GB)._
 
 ---
 
@@ -17,12 +17,15 @@ You drive it from a **Discord server**. Agents research a topic, draft candidate
 them, and - after your approval at each gate - generate voiceover + visuals and assemble a finished
 vertical short. The pipeline **hands you a private-draft upload; you click Publish yourself.**
 
-It runs on a single PC (AMD RX 5700 XT, 64 GB RAM, Windows 11) with **no paid cloud in the core loop**
+It runs on a single PC (AMD RX 5700 XT, 16 GB RAM, Windows 11) with **no paid cloud in the core loop**
 and **every published frame kept monetization-license-clean**.
 
 ## Current phase / status
 
-- **Phase: 0 (environment + one-click skeleton).** Nothing runs end-to-end yet - this is a fresh scaffold.
+- **Phase: 0 (environment + one-click skeleton).** TASK-001 (brain) and TASK-003 (TTS) DONE and measured.
+- **Hardware correction (2026-07-23):** the box has **16 GB RAM**, not 64. See ADR-0011 / TASK-008.
+- **Primary brain (measured):** **Qwen3-4B-Instruct-2507** on llama.cpp b10092 Vulkan: 93 tok/s generation,
+  670 tok/s prompt, schema-JSON + tool-calls pass (`scripts/smoke_llm.py`). Kokoro TTS: 2.8x realtime on CPU.
 - **Locked decisions:** Windows-native runtime, flat-vector visual style, Kokoro narrator, see `docs/adr/`.
 - **License / remote:** MIT (`LICENSE`); public repo `github.com/Xenax33/Atelier`.
 - **Health:** N/A (no services stood up yet). Phase-0 goal is to get `start-day.ps1` bringing the stack up green.
@@ -50,12 +53,14 @@ Pinned versions & the ZLUDA venv snapshot recipe: `docs/STACK.md`.
 ## What's done / in-progress / next
 
 - **Authoritative list:** `tasks/ledger.jsonl` (append-only).
-- **Right now:** repo scaffolded + context system initialized. Next up is Phase-0 task `TASK-001` (llama.cpp Vulkan server).
+- **Right now:** repo scaffolded, pushed to GitHub (`master`), and TASK-001 started: standing up the
+  llama.cpp Vulkan server with Qwen3-8B (ADR-0011). Artifact versions/URLs pinned via research before download.
 
 ## Known traps (these will bite you)
 
 - **Never use ROCm/vLLM/torch-CUDA on this GPU** (gfx1010 / RDNA1). Vulkan for LLM/TTS, ZLUDA for SDXL. (`docs/adr/0001`)
-- **8 GB VRAM holds ONE heavy GPU stage at a time.** The `--cpu-moe` brain is ~2 GB and always resident; SDXL / GPU-whisper / Orpheus must be **serialized**. (`docs/HARDWARE.md`)
+- **8 GB VRAM holds ONE heavy GPU stage at a time.** Until the RAM upgrade the 8B brain itself is a heavy stage (~5-6 GB): stop llama-server before SDXL renders. SDXL / GPU-whisper / Orpheus always serialized. (`docs/HARDWARE.md`)
+- **Only 16 GB system RAM** (audit 2026-07-23): keep the app layer lean, watch RAM in health checks, and do not attempt the 30B `--cpu-moe` brain until TASK-008 (2x32 GB upgrade) is done. (`docs/adr/0011`)
 - **ComfyUI-Zluda is fragile** - snapshot the working venv immediately; it breaks on Triton/flash-attn bumps. (`docs/STACK.md`)
 - **Local models fabricate citations (11-57%).** The fact-checker's mechanical citation resolution is not optional. (`docs/adr` + ARCHITECTURE §5)
 - **Wikipedia prose is CC-BY-SA** -> extract facts, rewrite, never quote. Wikidata (CC-0) is the copy-safe spine.

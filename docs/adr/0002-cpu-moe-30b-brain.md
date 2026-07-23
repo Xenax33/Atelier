@@ -1,10 +1,12 @@
 # 0002 - Qwen3-30B-A3B via llama.cpp `--cpu-moe` as the primary brain
-Status: Accepted
+Status: Superseded by 0011 (reinstate after the RAM upgrade to 64 GB, see TASK-008)
 Date: 2026-07-22
 
 ## Context
 8 GB VRAM can't hold a dense 30B model, and dense 7-8B models are unreliable as autonomous agent brains
 (malformed tool-JSON, hallucinated calls). But we have 64 GB system RAM.
+_(2026-07-23 correction: the audit found 16 GB, not 64. See ADR-0011. This ADR becomes the target state
+again once the RAM upgrade lands.)_
 
 ## Decision
 Run **Qwen3-30B-A3B Q4_K_M** (MoE: 30B total, ~3.3B active) via **llama.cpp Vulkan** with **`--cpu-moe`**,
