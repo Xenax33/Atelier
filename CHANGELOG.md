@@ -2,6 +2,18 @@
 
 Notable changes, newest first. Keep entries short; link tasks (`TASK-###`) and ADRs where relevant.
 
+## 2026-07-25 - MVP COMPLETE: first shorts produced end-to-end (TASK-007 done)
+- **The pipeline works**: topic -> schema-constrained script -> Gate 1 -> Kokoro narration -> Gate 2 ->
+  automatic GPU choreography (stop brain, render SDXL stills via ComfyUI, restart brain) -> whisper
+  word-timed captions -> Ken-Burns 1080x1920 assembly with burned captions -> Gate 3 -> delivery with
+  YouTube metadata + AI-disclosure reminder. Two shorts produced: one CLI-driven, one fully
+  Discord-driven by the user.
+- **Durability proven**: a gate opened in one process was resumed by a different process from the
+  SQLite checkpoint; gate buttons are DynamicItems (regex custom_ids) that survive bot restarts.
+- New: `src/graph/{build,state}.py`, `src/workers/{tts,visuals,captions,assemble}.py`,
+  `src/gateway/client.py`, `src/agents/scriptwriter.py`, `src/bot/{gates,pipeline}.py`,
+  `scripts/run_pipeline_cli.py` (also the resume-test harness).
+
 ## 2026-07-25 - The visuals engine is alive: Phase 0 complete (TASK-002 done)
 - **First SDXL images rendered on the RX 5700 XT via ZLUDA**: 768x1344 flat-vector style, clean output.
   First-ever run ~55 min (one-time ZLUDA/MIOpen kernel compile), **3.0 min per image warm**.

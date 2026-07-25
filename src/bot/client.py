@@ -9,6 +9,7 @@ Design rules (see src/bot/__init__.py and docs/ARCHITECTURE.md):
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 
@@ -17,6 +18,8 @@ import httpx
 from discord.ext import commands
 
 from ..config import Settings
+from .gates import GateAction
+from .pipeline import PipelineRunner
 from .views import ControlPanel
 
 log = logging.getLogger("atelier.bot")
@@ -34,6 +37,10 @@ class AtelierBot(commands.Bot):
         # Re-register persistent views BEFORE any interaction can arrive, so buttons on
         # messages from previous runs keep working (TASK-004's definition of done).
         self.add_view(ControlPanel(self.settings.model_gateway_base_url))
+        # Gate buttons are DynamicItems: regex-matched custom_ids, so gates posted by ANY
+        # previous bot process resume cleanly after a restart (the checkpoint has the state).
+        self.add_dynamic_items(GateAction)
+        self.pipeline = PipelineRunner(self, self.settings.discord_control_channel_id)
         guild = discord.Object(id=self.settings.discord_guild_id)
         self.tree.copy_global_to(guild=guild)
         await self.tree.sync(guild=guild)
@@ -93,5 +100,14 @@ def build_bot(settings: Settings) -> AtelierBot:
             lines.append("⚪ visuals (ComfyUI): not running (TASK-002 pending)")
         lines.append(f"🟢 bot: websocket {interaction.client.latency * 1000:.0f} ms")
         await interaction.followup.send("\n".join(lines), ephemeral=True)
+
+    @bot.tree.command(name="new-short", description="Start producing a new short from a topic")
+    @discord.app_commands.describe(topic="The science-history topic or fact for this short")
+    async def new_short(interaction: discord.Interaction, topic: str) -> None:
+        await interaction.response.send_message(
+            f"Starting a new short: **{topic}**\nDrafting the script (about a minute)...",
+        )
+        # Fire-and-forget: the runner posts Gate 1 to the control channel when ready.
+        asyncio.create_task(bot.pipeline.start(topic))
 
     return bot

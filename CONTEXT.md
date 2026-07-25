@@ -22,10 +22,16 @@ and **every published frame kept monetization-license-clean**.
 
 ## Current phase / status
 
-- **Phase: 0 COMPLETE on all four pillars (2026-07-25):** TASK-001 brain (Qwen3-4B, 93 tok/s), TASK-002
-  visuals (ComfyUI-Zluda SDXL: 3.0 min/image warm, one-time ~55 min first compile paid), TASK-003 TTS
-  (Kokoro 2.8x realtime), TASK-004 Discord control plane (persistent buttons verified across restart).
-  Remaining polish: TASK-006 (nssm supervision). Next phase: **MVP** (TASK-007, the LangGraph pipeline).
+- **Phase: MVP COMPLETE (2026-07-25).** The full pipeline works end-to-end, driven from Discord:
+  `/new-short` -> script Gate 1 (approve/regen-with-feedback/reject) -> Kokoro narration Gate 2 ->
+  GPU-choreographed SDXL stills -> whisper captions -> Ken-Burns assembly -> Gate 3 -> delivery
+  (master.mp4 + metadata.md, manual upload per ADR-0005). Resume proven two ways: CLI cross-process
+  checkpoint resume + restart-proof DynamicItem gate buttons. First two produced shorts:
+  `state/runs/mvp-test-1` (CLI) and `state/runs/20260725-23c762` (Discord, user-driven).
+- **Known MVP backlog** (see TASK-007 done record): script word-count validation (4B undershoots the
+  130-155 target), auto-resume orphaned mid-node runs on bot boot, metadata punctuation cleanup,
+  Gate-1 taste-signal capture (ADR-0010). Next phase: **v1** - researcher + FACT-CHECKER (the
+  credibility layer, non-negotiable before real publishing), dedup memory, multi-candidate scripts.
 - **VRAM rule reminder:** brain and SDXL cannot co-reside; `start-day.ps1` boots brain+bot, ComfyUI is
   opt-in (`-WithComfy`) or started per-stage by the render worker.
 - **Hardware correction (2026-07-23):** the box has **16 GB RAM**, not 64. See ADR-0011 / TASK-008.
