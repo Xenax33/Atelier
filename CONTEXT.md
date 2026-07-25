@@ -22,9 +22,12 @@ and **every published frame kept monetization-license-clean**.
 
 ## Current phase / status
 
-- **Phase: 0 (environment + one-click skeleton).** DONE: TASK-001 (brain), TASK-003 (TTS), TASK-004
-  (Discord control plane: bot Atelier#1371, persistent buttons verified across restart, /status live).
-  Remaining: TASK-002 (ComfyUI-Zluda), launcher polish (TASK-005/006).
+- **Phase: 0 COMPLETE on all four pillars (2026-07-25):** TASK-001 brain (Qwen3-4B, 93 tok/s), TASK-002
+  visuals (ComfyUI-Zluda SDXL: 3.0 min/image warm, one-time ~55 min first compile paid), TASK-003 TTS
+  (Kokoro 2.8x realtime), TASK-004 Discord control plane (persistent buttons verified across restart).
+  Remaining polish: TASK-006 (nssm supervision). Next phase: **MVP** (TASK-007, the LangGraph pipeline).
+- **VRAM rule reminder:** brain and SDXL cannot co-reside; `start-day.ps1` boots brain+bot, ComfyUI is
+  opt-in (`-WithComfy`) or started per-stage by the render worker.
 - **Hardware correction (2026-07-23):** the box has **16 GB RAM**, not 64. See ADR-0011 / TASK-008.
 - **Primary brain (measured):** **Qwen3-4B-Instruct-2507** on llama.cpp b10092 Vulkan: 93 tok/s generation,
   670 tok/s prompt, schema-JSON + tool-calls pass (`scripts/smoke_llm.py`). Kokoro TTS: 2.8x realtime on CPU.

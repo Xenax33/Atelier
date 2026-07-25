@@ -2,6 +2,16 @@
 
 Notable changes, newest first. Keep entries short; link tasks (`TASK-###`) and ADRs where relevant.
 
+## 2026-07-25 - The visuals engine is alive: Phase 0 complete (TASK-002 done)
+- **First SDXL images rendered on the RX 5700 XT via ZLUDA**: 768x1344 flat-vector style, clean output.
+  First-ever run ~55 min (one-time ZLUDA/MIOpen kernel compile), **3.0 min per image warm**.
+- Stack: ComfyUI-Zluda (patientx) + HIP SDK 6.2.4 + community gfx1010 rocBLAS + ZLUDA 3.9.5,
+  torch 2.7.0-cu118 patched. Traps documented in docs/SETUP-COMFYUI.md (wrong-SDK-version page,
+  Defender-locked zluda.zip, scipy/numpy clash). Venv snapshotted.
+- `scripts/smoke_sdxl.py` added (API-driven render smoke with timing + seed control).
+- `start-day.ps1`: ComfyUI now opt-in via `-WithComfy` (VRAM serialization rule); brain+bot by default.
+- **Phase 0 is complete**: brain, voice, visuals, control plane - all measured on this exact box.
+
 ## 2026-07-25 - The control plane is live (TASK-004 done)
 - Discord bot **Atelier#1371** running: guilds-only intents, guild-scoped slash sync, `/status` stack
   health, boot announcement card with persistent **Ping bot** / **Check brain** buttons.

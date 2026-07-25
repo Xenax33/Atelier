@@ -13,7 +13,9 @@
 #>
 [CmdletBinding()]
 param(
-    [switch]$SkipComfy,     # start without SDXL (e.g. text-only iteration)
+    [switch]$WithComfy,     # ALSO boot ComfyUI-Zluda. Default off: the 8GB card cannot hold the
+                            # brain AND SDXL at once (HARDWARE.md); the render worker starts/stops
+                            # ComfyUI around visual stages instead.
     [int]$TimeoutSec = 120
 )
 
@@ -53,11 +55,20 @@ if (-not (Wait-Endpoint -Url "http://127.0.0.1:8080/health" -TimeoutSec $Timeout
 }
 Write-Host "[atelier] llama gateway healthy on :8080" -ForegroundColor Green
 
-# 2) ComfyUI-Zluda - SDXL on :8188 (native Windows)
-if (-not $SkipComfy) {
-    # TODO(TASK-002): Start-Process for ComfyUI-Zluda main.py
-    if (-not (Wait-Endpoint -Url "http://127.0.0.1:8188" -TimeoutSec $TimeoutSec)) {
-        Write-Warning "ComfyUI-Zluda not up yet (expected before TASK-002)."
+# 2) ComfyUI-Zluda - SDXL on :8188 (native Windows, lives at F:\ComfyUI-Zluda - no spaces in path).
+#    Measured (2026-07-25): first-ever run ~55 min one-time kernel compile; warm renders 3.0 min at
+#    768x1344. Opt-in here (see param note); the pipeline's render worker manages it per-stage.
+if ($WithComfy) {
+    $comfyUp = $false
+    try { $comfyUp = (Invoke-WebRequest -Uri "http://127.0.0.1:8188/system_stats" -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200 } catch {}
+    if (-not $comfyUp) {
+        # NOTE: invoke the bat by FULL path (bare names misresolve in some shells; see RUNBOOK).
+        Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", "cd /d F:\ComfyUI-Zluda && F:\ComfyUI-Zluda\comfyui-n.bat") -WindowStyle Minimized
+    }
+    if (-not (Wait-Endpoint -Url "http://127.0.0.1:8188/system_stats" -TimeoutSec 300)) {
+        Write-Warning "ComfyUI-Zluda failed to come up on :8188 (see docs/SETUP-COMFYUI.md)."
+    } else {
+        Write-Host "[atelier] ComfyUI-Zluda healthy on :8188" -ForegroundColor Green
     }
 }
 
