@@ -2,6 +2,14 @@
 
 Notable changes, newest first. Keep entries short; link tasks (`TASK-###`) and ADRs where relevant.
 
+## 2026-07-25 - The control plane is live (TASK-004 done)
+- Discord bot **Atelier#1371** running: guilds-only intents, guild-scoped slash sync, `/status` stack
+  health, boot announcement card with persistent **Ping bot** / **Check brain** buttons.
+- **Restart test passed**: a button on a card posted before a bot restart still worked after relaunch.
+  Persistent views are the foundation the approval gates will be built on.
+- New: `src/config.py` (pydantic-settings), `src/bot/{client,views}.py`, `src/main.py`; start-day.ps1
+  now launches the app when .env is configured.
+
 ## 2026-07-23 - The brain and the voice are up (TASK-001, TASK-003 done)
 - llama.cpp **b10092 Vulkan** installed; detects the RX 5700 XT cleanly. Benchmarked on-card:
   **Qwen3-4B-Instruct-2507** chosen as primary brain (670 pp / **93 tok/s** tg, schema-JSON + tool-calls

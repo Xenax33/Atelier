@@ -107,7 +107,7 @@ def main() -> int:
         usage = r.get("usage", {})
         tps = usage.get("completion_tokens", 0) / dt if dt > 0 else 0
         print(f"[ok] schema-constrained JSON parsed ({dt:.1f}s, ~{tps:.0f} tok/s) hook={spec['hook']!r}")
-    except (Exception,) as e:  # noqa: BLE001 - smoke test reports anything
+    except Exception as e:  # noqa: BLE001 - smoke test reports anything
         failures.append(f"json_schema: {e}")
         print(f"[FAIL] schema-constrained JSON: {e}")
 
@@ -132,7 +132,7 @@ def main() -> int:
         args_obj = json.loads(fn["arguments"])
         assert "10.1002" in args_obj.get("doi", "")
         print(f"[ok] tool call emitted correctly ({dt:.1f}s): {fn['name']}({args_obj})")
-    except (Exception,) as e:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
         failures.append(f"tool_call: {e}")
         print(f"[FAIL] tool-calling: {e}")
 

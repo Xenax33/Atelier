@@ -61,9 +61,21 @@ if (-not $SkipComfy) {
     }
 }
 
-# 3) The app (discord.py + LangGraph)
-# TODO(TASK-005): & .\.venv\Scripts\python.exe -m src.main
-Write-Host "[atelier] TODO: launch app process (src.main)." -ForegroundColor Yellow
+# 3) The app (Discord control plane; later + LangGraph)
+$envFile = "$Root\.env"
+$envReady = (Test-Path $envFile) -and -not (Select-String -Path $envFile -Pattern "^DISCORD_BOT_TOKEN=changeme" -Quiet)
+if ($envReady) {
+    $botRunning = Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" |
+        Where-Object { $_.CommandLine -match "src\.main" }
+    if (-not $botRunning) {
+        Start-Process -FilePath "$Root\.venv\Scripts\python.exe" -WorkingDirectory $Root -ArgumentList @("-m", "src.main") -WindowStyle Minimized
+        Write-Host "[atelier] app (Discord bot) launching..." -ForegroundColor Green
+    } else {
+        Write-Host "[atelier] app already running." -ForegroundColor Green
+    }
+} else {
+    Write-Host "[atelier] .env missing or DISCORD_BOT_TOKEN unset: app not launched (see .env.example)." -ForegroundColor Yellow
+}
 
 # 4) Ping Discord "stack ready"
 # TODO(TASK-006): post to DISCORD_CONTROL_CHANNEL_ID via webhook once services are green.
