@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # ComfyUI (TASK-002)
     comfyui_base_url: str = "http://127.0.0.1:8188"
 
+    # SearXNG (TASK-009; local instance in WSL, optional until deployed)
+    searxng_base_url: str = "http://127.0.0.1:8888"
+
     # Paths
     state_dir: str = "./state"
     db_path: str = "./atelier.db"

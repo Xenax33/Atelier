@@ -55,6 +55,25 @@ if (-not (Wait-Endpoint -Url "http://127.0.0.1:8080/health" -TimeoutSec $Timeout
 }
 Write-Host "[atelier] llama gateway healthy on :8080" -ForegroundColor Green
 
+# 1.5) SearXNG (researcher search backend) in WSL2 Ubuntu + docker.
+#      CRITICAL QUIRK: the WSL VM terminates when the last wsl.exe session exits, killing the
+#      containers. The "sleep infinity" session below is the keepalive that holds the VM open.
+$searxUp = $false
+try { $searxUp = (Invoke-WebRequest -Uri "http://127.0.0.1:8888/healthz" -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200 } catch {}
+if (-not $searxUp) {
+    Start-Process -FilePath "wsl.exe" -WindowStyle Hidden -ArgumentList @(
+        "-d", "Ubuntu", "-u", "root", "-e", "sh", "-c",
+        "service docker start; cd /opt/searxng && docker compose up -d; exec sleep infinity"
+    )
+    if (Wait-Endpoint -Url "http://127.0.0.1:8888/healthz" -TimeoutSec 90) {
+        Write-Host "[atelier] SearXNG healthy on :8888" -ForegroundColor Green
+    } else {
+        Write-Warning "SearXNG did not come up (researcher falls back to direct APIs)."
+    }
+} else {
+    Write-Host "[atelier] SearXNG already healthy on :8888" -ForegroundColor Green
+}
+
 # 2) ComfyUI-Zluda - SDXL on :8188 (native Windows, lives at F:\ComfyUI-Zluda - no spaces in path).
 #    Measured (2026-07-25): first-ever run ~55 min one-time kernel compile; warm renders 3.0 min at
 #    768x1344. Opt-in here (see param note); the pipeline's render worker manages it per-stage.

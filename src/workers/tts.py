@@ -23,3 +23,18 @@ def render_narration(text: str, out_path: str | pathlib.Path, voice: str = DEFAU
     out.parent.mkdir(parents=True, exist_ok=True)
     sf.write(str(out), samples, sample_rate)
     return len(samples) / sample_rate
+
+
+def wav_to_mp3(wav_path: str | pathlib.Path) -> str:
+    """Discord-playable mp3 preview next to the wav (raw WAV won't inline-play reliably)."""
+    import subprocess
+
+    from imageio_ffmpeg import get_ffmpeg_exe
+
+    wav = pathlib.Path(wav_path)
+    mp3 = wav.with_suffix(".mp3")
+    subprocess.run(
+        [get_ffmpeg_exe(), "-y", "-i", str(wav), "-codec:a", "libmp3lame", "-b:a", "128k", str(mp3)],
+        capture_output=True, check=True,
+    )
+    return str(mp3)

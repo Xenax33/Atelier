@@ -1,0 +1,32 @@
+[
+ {
+  "topic": "The Solar Impulse 2 Earth Circumnavigation (2016)",
+  "pitch": "A solar-powered plane flies around the world without a single drop of fuel, relying only on sunlight collected during the day and stored in batteries. Over 14 days, it crosses continents, climbs mountains, and proves that human ambition can outpace even the limits of physics.",
+  "hook_angle": "How could a plane powered only by sunlight complete a global journey \u2014 without fuel, without engines, and without ever touching the ground?"
+ },
+ {
+  "topic": "The Syncom 2 Geosynchronous Satellite Launch (1963)",
+  "pitch": "The world\u2019s first geosynchronous satellite was launched into orbit, staying fixed over one point on Earth \u2014 enabling real-time global television broadcasts and laying the foundation for modern satellite communications.",
+  "hook_angle": "What if the satellite stayed in one place above Earth, always watching \u2014 and never moved? That\u2019s exactly what Syncom 2 did, changing how we see the world."
+ },
+ {
+  "topic": "The Explorer 4 Satellite Launch (1958)",
+  "pitch": "A small U.S. satellite was launched into space to study cosmic rays \u2014 and in a surprising discovery, it found that Earth\u2019s atmosphere shields space from radiation, a finding that reshaped understanding of our planet\u2019s protective layers.",
+  "hook_angle": "A tiny satellite revealed that Earth has a natural shield against space radiation \u2014 a shield we didn\u2019t know existed until it was discovered by a simple measurement."
+ },
+ {
+  "topic": "The Apollo 15 Lunar Roving Vehicle (1971)",
+  "pitch": "Apollo 15 astronauts deployed the first rover on the Moon \u2014 a small, rugged vehicle that rolled across the lunar surface, allowing scientists to explore far beyond the footprints of previous missions.",
+  "hook_angle": "What if the Moon had a road system? On Apollo 15, a robot-powered vehicle rolled across the lunar surface \u2014 opening a new frontier in space exploration."
+ },
+ {
+  "topic": "The Morris Worm Incident (1989)",
+  "pitch": "A student-written computer program, designed to test networks, accidentally spread across the early internet \u2014 infecting thousands of computers and becoming the first known cyberattack ever prosecuted under U.S. law.",
+  "hook_angle": "A simple computer program, meant to be a joke, spread like a virus \u2014 and became the first cybercrime ever formally charged against a person."
+ },
+ {
+  "topic": "The 1963 Skopje Earthquake in Yugoslavia (now North Macedonia)",
+  "pitch": "A massive earthquake hit Skopje, killing over 1,100 people and shattering buildings \u2014 but also triggered a wave of emergency response and engineering innovation that changed how cities prepare for seismic events.",
+  "hook_angle": "An earthquake in 1963 didn\u2019t just kill 1,100 people \u2014 it changed how cities are built, designed, and protected from future disasters."
+ }
+]

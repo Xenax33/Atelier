@@ -29,6 +29,8 @@ class ShortSpec(TypedDict):
 class ShortState(TypedDict, total=False):
     run_id: str
     topic: str
+    evidence: list[dict]        # research pack: [{source, title, text}]
+    claims: list[dict]          # fact-check audit: [{claim, verdict, evidence_ref}]
     spec: ShortSpec
     script_feedback: str        # user's regen feedback from Gate 1
     script_attempts: int

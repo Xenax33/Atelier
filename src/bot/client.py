@@ -19,6 +19,7 @@ from discord.ext import commands
 
 from ..config import Settings
 from .gates import GateAction
+from .ideas import IdeaPick, ideas_embed, ideas_view, save_batch
 from .pipeline import PipelineRunner
 from .views import ControlPanel
 
@@ -39,7 +40,7 @@ class AtelierBot(commands.Bot):
         self.add_view(ControlPanel(self.settings.model_gateway_base_url))
         # Gate buttons are DynamicItems: regex-matched custom_ids, so gates posted by ANY
         # previous bot process resume cleanly after a restart (the checkpoint has the state).
-        self.add_dynamic_items(GateAction)
+        self.add_dynamic_items(GateAction, IdeaPick)
         self.pipeline = PipelineRunner(self, self.settings.discord_control_channel_id)
         guild = discord.Object(id=self.settings.discord_guild_id)
         self.tree.copy_global_to(guild=guild)
@@ -109,5 +110,19 @@ def build_bot(settings: Settings) -> AtelierBot:
         )
         # Fire-and-forget: the runner posts Gate 1 to the control channel when ready.
         asyncio.create_task(bot.pipeline.start(topic))
+
+    @bot.tree.command(name="ideas", description="Have the researcher propose topic ideas to pick from")
+    @discord.app_commands.describe(steer="Optional direction, e.g. 'astronomy' or 'something funny'")
+    async def ideas_cmd(interaction: discord.Interaction, steer: str = "") -> None:
+        await interaction.response.send_message("Researching topic ideas (about a minute)...")
+        from ..agents.researcher import propose_ideas
+
+        try:
+            ideas = await asyncio.to_thread(propose_ideas, 6, steer)
+        except Exception as e:  # noqa: BLE001 - surfaced to the user
+            await interaction.followup.send(f"researcher failed: `{str(e)[:300]}`")
+            return
+        batch = save_batch(ideas)
+        await interaction.followup.send(embed=ideas_embed(ideas, batch), view=ideas_view(batch, len(ideas)))
 
     return bot

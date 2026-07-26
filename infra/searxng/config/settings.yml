@@ -1,0 +1,15 @@
+# SearXNG settings for the local Atelier instance (TASK-009).
+# The json format MUST be listed or /search?format=json returns 403 (documented trap).
+# secret_key is replaced with a random value at deploy time (deploy step in RUNBOOK).
+use_default_settings: true
+
+server:
+  secret_key: "REPLACED-AT-DEPLOY"
+  limiter: false
+  public_instance: false
+  image_proxy: false
+
+search:
+  formats:
+    - html
+    - json

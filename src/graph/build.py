@@ -36,8 +36,32 @@ def _run_dir(state: ShortState) -> pathlib.Path:
 
 # --- nodes ---------------------------------------------------------------
 
+def research(state: ShortState) -> dict:
+    import json
+
+    from ..agents.researcher import gather_evidence
+
+    evidence = gather_evidence(state["topic"])
+    run = _run_dir(state)
+    (run / "evidence.json").write_text(json.dumps(evidence, indent=1), encoding="utf-8")
+    return {"evidence": evidence}
+
+
 def draft(state: ShortState) -> dict:
-    spec = draft_spec(state["topic"], state.get("script_feedback", ""))
+    from ..agents.researcher import evidence_digest
+
+    ev_text = evidence_digest(state.get("evidence", []))
+    spec = draft_spec(state["topic"], state.get("script_feedback", ""), ev_text)
+    # Word budget is semantics, not schema: enforce with one corrective retry (target 130-155).
+    words = len(narration_text(spec).split())
+    if words < 120:
+        spec = draft_spec(
+            state["topic"],
+            f"Previous draft was only {words} spoken words; the target is 130-155. "
+            "Expand the beats with concrete, evidence-backed detail. "
+            + state.get("script_feedback", ""),
+            ev_text,
+        )
     return {
         "spec": spec,
         "narration_text": narration_text(spec),
@@ -46,8 +70,20 @@ def draft(state: ShortState) -> dict:
     }
 
 
+def factcheck(state: ShortState) -> dict:
+    import json
+
+    from ..agents.factcheck import audit_spec
+
+    claims = audit_spec(state["spec"], state.get("evidence", []))
+    run = _run_dir(state)
+    (run / "claims.json").write_text(json.dumps(claims, indent=1), encoding="utf-8")
+    return {"claims": claims}
+
+
 def gate_script(state: ShortState) -> Command[Literal["draft", "tts", "abort"]]:
     decision = interrupt({"stage": "script", "spec": state["spec"],
+                          "claims": state.get("claims", []),
                           "attempt": state.get("script_attempts", 1)})
     if decision.get("action") == "approve":
         return Command(goto="tts")
@@ -134,7 +170,9 @@ def abort(state: ShortState) -> dict:
 
 def build_graph(checkpointer) -> object:
     g = StateGraph(ShortState)
+    g.add_node("research", research)
     g.add_node("draft", draft)
+    g.add_node("factcheck", factcheck)
     g.add_node("gate_script", gate_script)
     g.add_node("tts", tts_node)
     g.add_node("gate_audio", gate_audio)
@@ -145,8 +183,10 @@ def build_graph(checkpointer) -> object:
     g.add_node("deliver", deliver)
     g.add_node("abort", abort)
 
-    g.set_entry_point("draft")
-    g.add_edge("draft", "gate_script")
+    g.set_entry_point("research")
+    g.add_edge("research", "draft")
+    g.add_edge("draft", "factcheck")
+    g.add_edge("factcheck", "gate_script")
     g.add_edge("tts", "gate_audio")
     g.add_edge("visuals", "captions")
     g.add_edge("captions", "assemble")

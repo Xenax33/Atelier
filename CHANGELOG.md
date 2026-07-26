@@ -2,6 +2,18 @@
 
 Notable changes, newest first. Keep entries short; link tasks (`TASK-###`) and ADRs where relevant.
 
+## 2026-07-26 - Ideation, search, credibility (TASK-009/010/011/012/013/014)
+- **/ideas**: researcher proposes pitched topics (today-in-history + Wikipedia + SearXNG), persistent
+  pick-buttons start the pipeline. User-accepted ("significantly better").
+- **SearXNG** self-hosted in WSL2 Ubuntu + docker (infra/searxng/), JSON API, WSL keepalive + memory cap.
+- **Credibility layer**: research node gathers an evidence pack; scripts are evidence-grounded with a
+  word-count auto-retry; a conservative fact-checker audits every claim and flags them on the Gate 1
+  card. Caught a real garbled fact on its first test run.
+- Fixes: caption wrapping in safe margins; Discord playback (faststart mp4 + mp3 previews); visual
+  quality stack (commercial-safe vector LoRA, dpmpp_2m/karras/32, cudnn-off VAE decode for RDNA1).
+- Decisions: Gemma 3n declined (Vulkan load risk + weaker structured output; ledger TASK-012);
+  Kurzgesagt-named LoRAs avoided (trade-dress risk).
+
 ## 2026-07-25 - MVP COMPLETE: first shorts produced end-to-end (TASK-007 done)
 - **The pipeline works**: topic -> schema-constrained script -> Gate 1 -> Kokoro narration -> Gate 2 ->
   automatic GPU choreography (stop brain, render SDXL stills via ComfyUI, restart brain) -> whisper

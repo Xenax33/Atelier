@@ -97,10 +97,12 @@ def assemble(spec: dict, audio_path: str, image_paths: list[str], words_json: st
 
     master = pathlib.Path(out_master)
     master.parent.mkdir(parents=True, exist_ok=True)
+    # +faststart puts the moov atom at the file head so Discord/browsers can stream-preview
+    # the mp4 (without it the attachment shows but won't play inline - user-reported bug).
     video.write_videofile(
         str(master), fps=30, codec="libx264", audio_codec="aac",
         preset="medium", threads=6, logger=None,
-        ffmpeg_params=["-crf", "19", "-pix_fmt", "yuv420p"],
+        ffmpeg_params=["-crf", "19", "-pix_fmt", "yuv420p", "-movflags", "+faststart"],
     )
 
     # Proxy: 540x960, bitrate budgeted to stay under the Discord cap.
@@ -110,7 +112,7 @@ def assemble(spec: dict, audio_path: str, image_paths: list[str], words_json: st
     proxy_clip.write_videofile(
         str(proxy), fps=30, codec="libx264", audio_codec="aac",
         preset="medium", threads=6, logger=None,
-        bitrate=f"{kbps}k", ffmpeg_params=["-pix_fmt", "yuv420p"],
+        bitrate=f"{kbps}k", ffmpeg_params=["-pix_fmt", "yuv420p", "-movflags", "+faststart"],
     )
     video.close()
     audio.close()

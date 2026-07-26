@@ -68,8 +68,13 @@ def _profile() -> str:
         return "(no profile yet - use the hard rules only)"
 
 
-def draft_spec(topic: str, feedback: str = "") -> ShortSpec:
+def draft_spec(topic: str, feedback: str = "", evidence_text: str = "") -> ShortSpec:
     user = f"Write the spec for a short about: {topic}"
+    if evidence_text:
+        user += (
+            "\n\nEVIDENCE PACK (ground every factual claim in this; if a detail is not here "
+            "and you are not certain of it, leave it out):\n" + evidence_text
+        )
     if feedback:
         user += f"\n\nThe previous draft was rejected. Editor feedback to incorporate:\n{feedback}"
     return chat_json(

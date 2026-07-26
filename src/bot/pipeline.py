@@ -69,9 +69,13 @@ class PipelineRunner:
                 await ch.send(embed=self._script_embed(rid, payload), view=gate_view(rid, "script"))
             elif stage == "audio":
                 secs = payload.get("seconds", 0)
+                # mp3 preview: Discord's inline player handles mp3 reliably, raw wav not.
+                from ..workers.tts import wav_to_mp3
+
+                preview = await asyncio.to_thread(wav_to_mp3, payload["audio_path"])
                 await ch.send(
                     content=f"**Gate 2 - narration** `{rid}` ({secs:.0f}s). Listen, then decide:",
-                    file=discord.File(payload["audio_path"]),
+                    file=discord.File(preview),
                     view=gate_view(rid, "audio"),
                 )
             elif stage == "final":
@@ -110,5 +114,18 @@ class PipelineRunner:
             e.add_field(name=f"Beat {i + 1} - {b['caption']}", value=b["narration"][:1024], inline=False)
         e.add_field(name="Payoff", value=spec["payoff"], inline=False)
         e.add_field(name="CTA", value=spec["cta"], inline=False)
+        claims = payload.get("claims", [])
+        flagged = [c for c in claims if c.get("verdict") != "supported"]
+        if claims:
+            if flagged:
+                lines = "\n".join(
+                    f"{'🔴' if c['verdict'] == 'unsupported' else '🟡'} {c['claim'][:150]}"
+                    for c in flagged[:6]
+                )
+                e.add_field(name=f"⚠ Fact-check: {len(flagged)}/{len(claims)} claims need your eye",
+                            value=lines[:1024], inline=False)
+            else:
+                e.add_field(name="Fact-check", value=f"🟢 all {len(claims)} claims supported by evidence",
+                            inline=False)
         e.set_footer(text=f"{rid} | {words} spoken words (target 130-155)")
         return e

@@ -1,0 +1,21 @@
+# SearXNG for the researcher agent (TASK-009). Runs inside WSL2 Ubuntu via docker.
+# Canonical copy lives in the repo; deployed to /opt/searxng inside WSL.
+# Loopback-only on purpose: an unlimited public instance would be abused within hours.
+services:
+  searxng:
+    image: docker.io/searxng/searxng:latest
+    container_name: searxng
+    restart: unless-stopped
+    ports:
+      # 0.0.0.0 INSIDE the WSL NAT VM (not LAN-exposed; Windows reaches it via the WSL relay,
+      # which is unreliable for loopback-only binds - the reason this is not 127.0.0.1).
+      - "8888:8080"
+    volumes:
+      - ./config:/etc/searxng
+      - searxng-data:/var/cache/searxng
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8888/
+      - SEARXNG_LIMITER=false
+
+volumes:
+  searxng-data:

@@ -28,10 +28,15 @@ and **every published frame kept monetization-license-clean**.
   (master.mp4 + metadata.md, manual upload per ADR-0005). Resume proven two ways: CLI cross-process
   checkpoint resume + restart-proof DynamicItem gate buttons. First two produced shorts:
   `state/runs/mvp-test-1` (CLI) and `state/runs/20260725-23c762` (Discord, user-driven).
-- **Known MVP backlog** (see TASK-007 done record): script word-count validation (4B undershoots the
-  130-155 target), auto-resume orphaned mid-node runs on bot boot, metadata punctuation cleanup,
-  Gate-1 taste-signal capture (ADR-0010). Next phase: **v1** - researcher + FACT-CHECKER (the
-  credibility layer, non-negotiable before real publishing), dedup memory, multi-candidate scripts.
+- **v1 progress (2026-07-26):** DONE: ideation-first flow (/ideas + SearXNG in WSL2 docker, user-accepted),
+  caption wrapping fix, visual quality stack (DD vector LoRA + dpmpp_2m/karras/32 + cudnn-off decode),
+  Discord attachment playback fix (faststart mp4 + mp3 previews), word-count auto-retry, and the
+  **CREDIBILITY LAYER**: research node (evidence.json) -> evidence-grounded scripts -> fact-checker
+  audit (claims.json) with flagged claims on the Gate 1 card. Verified catching a real garbled fact
+  (run factcheck-test-2).
+- **v1 backlog:** mechanical DOI/citation resolution, vector dedup memory (sqlite-vec), multi-candidate
+  scripts + Editor agent, Gate-1 taste-signal capture (ADR-0010), auto-resume orphaned mid-node runs,
+  metadata punctuation cleanup, boot-announce dedupe, Gemma prose A/B after NVIDIA upgrade.
 - **VRAM rule reminder:** brain and SDXL cannot co-reside; `start-day.ps1` boots brain+bot, ComfyUI is
   opt-in (`-WithComfy`) or started per-stage by the render worker.
 - **Hardware correction (2026-07-23):** the box has **16 GB RAM**, not 64. See ADR-0011 / TASK-008.
