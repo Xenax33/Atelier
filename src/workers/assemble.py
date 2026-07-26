@@ -66,6 +66,10 @@ def assemble(spec: dict, audio_path: str, image_paths: list[str], words_json: st
         clips.append(clip)
         t += dur
 
+    # Captions: method="caption" WRAPS text inside a fixed-width box, so chunks can never
+    # overflow the 9:16 frame (TASK-010: label-mode rendered one unwrapped line and long
+    # chunks ran off both edges). 80px safe margins each side.
+    caption_box_w = TARGET_W - 160
     text_clips = []
     for text, start, end in _caption_chunks(words):
         if end <= start:
@@ -74,15 +78,17 @@ def assemble(spec: dict, audio_path: str, image_paths: list[str], words_json: st
             TextClip(
                 text=text.upper(),
                 font=FONT,
-                font_size=68,
+                font_size=58,
                 color="white",
                 stroke_color="black",
-                stroke_width=8,
-                method="label",
+                stroke_width=6,
+                method="caption",
+                size=(caption_box_w, None),
+                text_align="center",
             )
             .with_start(start)
             .with_duration(min(end - start + 0.08, total - start))
-            .with_position(("center", int(TARGET_H * 0.74)))
+            .with_position(("center", int(TARGET_H * 0.72)))
         )
         text_clips.append(tc)
 
