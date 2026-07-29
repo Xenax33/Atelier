@@ -31,7 +31,10 @@ class ShortState(TypedDict, total=False):
     topic: str
     evidence: list[dict]        # research pack: [{source, title, text}]
     claims: list[dict]          # fact-check audit: [{claim, verdict, evidence_ref}]
-    spec: ShortSpec
+    candidates: list[ShortSpec]  # 3 angle-varied drafts
+    critiques: list[str]        # editor's one-liner per candidate
+    audited_index: int          # which candidate the current claims[] audit covers
+    spec: ShortSpec             # the currently selected/audited candidate
     script_feedback: str        # user's regen feedback from Gate 1
     script_attempts: int
     narration_text: str         # full spoken text assembled from the spec

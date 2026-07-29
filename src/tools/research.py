@@ -71,6 +71,33 @@ def semantic_scholar_search(query: str, limit: int = 5) -> list[dict]:
     ]
 
 
+def resolve_url(url: str) -> bool:
+    """Mechanical citation check: does the URL actually resolve (2xx/3xx)? Never trust
+    self-citation (Risk R4) - a claim's source must exist before we call it cited."""
+    if not url:
+        return False
+    try:
+        r = httpx.head(url, headers=_UA, timeout=10.0, follow_redirects=True)
+        if r.status_code == 405:  # some servers refuse HEAD
+            r = httpx.get(url, headers=_UA, timeout=10.0, follow_redirects=True)
+        return 200 <= r.status_code < 400
+    except httpx.HTTPError:
+        return False
+
+
+def crossref_doi_title(doi: str) -> str:
+    """Title registered for a DOI at Crossref, or '' if it does not resolve."""
+    if not doi:
+        return ""
+    try:
+        r = httpx.get(f"https://api.crossref.org/works/{doi}", headers=_UA, timeout=15.0)
+        r.raise_for_status()
+        titles = r.json().get("message", {}).get("title", [])
+        return titles[0] if titles else ""
+    except (httpx.HTTPError, ValueError):
+        return ""
+
+
 def wikipedia_extract(title: str, sentences: int = 8) -> str:
     """Intro extract of an article. CC-BY-SA: facts get extracted and REWRITTEN downstream."""
     try:

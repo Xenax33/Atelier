@@ -53,6 +53,9 @@ class IdeaPick(ui.DynamicItem[ui.Button], template=_TEMPLATE):
             await interaction.response.send_message("that ideas batch is gone", ephemeral=True)
             return
         idea = ideas[self.idx]
+        from ..store.taste import log_signal
+
+        log_signal("pick-idea", f"chose '{idea['topic']}' from batch {self.batch}")
         await interaction.response.send_message(
             f"Picked: **{idea['topic']}**\nDrafting the script..."
         )

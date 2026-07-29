@@ -91,3 +91,28 @@ def draft_spec(topic: str, feedback: str = "", evidence_text: str = "") -> Short
 def narration_text(spec: ShortSpec) -> str:
     parts = [spec["hook"]] + [b["narration"] for b in spec["beats"]] + [spec["payoff"], spec["cta"]]
     return " ".join(p.strip() for p in parts if p and p.strip())
+
+
+_ANGLES = [
+    "Angle: STORY-FIRST - open on the human moment, unfold chronologically.",
+    "Angle: SURPRISE-FIRST - lead with the most counterintuitive fact, then explain it.",
+    "Angle: STAKES-FIRST - open with what was at risk or what the world got wrong.",
+]
+
+
+def draft_candidates(topic: str, feedback: str = "", evidence_text: str = "", n: int = 3) -> list[ShortSpec]:
+    """N angle-varied candidates. Word-budget retry per candidate only when badly short."""
+    out = []
+    for i in range(n):
+        angle_feedback = (_ANGLES[i % len(_ANGLES)] + " " + feedback).strip()
+        spec = draft_spec(topic, angle_feedback, evidence_text)
+        words = len(narration_text(spec).split())
+        if words < 110:
+            spec = draft_spec(
+                topic,
+                f"{angle_feedback} Previous draft was only {words} spoken words; target 130-155. "
+                "Expand beats with concrete, evidence-backed detail.",
+                evidence_text,
+            )
+        out.append(spec)
+    return out

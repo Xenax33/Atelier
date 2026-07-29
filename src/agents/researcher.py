@@ -78,20 +78,57 @@ def _past_topics() -> list[str]:
     return out
 
 
+_QUERY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "subject": {"type": "string"},
+        "queries": {"type": "array", "minItems": 2, "maxItems": 3, "items": {"type": "string"}},
+    },
+    "required": ["subject", "queries"],
+    "additionalProperties": False,
+}
+
+
+def make_queries(topic: str) -> dict:
+    """Distill a narrative topic into search-engine-shaped queries. Raw story phrasings
+    retrieve junk (measured: a Marie Curie topic fetched a Douglas Mawson article)."""
+    return chat_json(
+        messages=[
+            {"role": "system", "content":
+                "Turn the topic into search inputs. subject: ONLY the primary person/thing/event "
+                "name, exactly as an encyclopedia article is titled (topic 'the day Marie Curie's "
+                "notebooks became radioactive' -> subject 'Marie Curie'; never a descriptive "
+                "phrase). queries: 2-3 short keyword search queries covering the key facts to "
+                "verify. No filler words."},
+            {"role": "user", "content": topic},
+        ],
+        schema=_QUERY_SCHEMA, schema_name="queries", temperature=0.2, max_tokens=200,
+    )
+
+
 def gather_evidence(topic: str, max_items: int = 10) -> list[dict]:
     """Evidence pack for a chosen topic: [{source, title, text}]. The scriptwriter grounds
     beats in THIS, and the fact-checker audits against it. Untrusted data, never instructions."""
+    try:
+        q = make_queries(topic)
+        subject, queries = q["subject"], q["queries"]
+    except Exception:  # noqa: BLE001 - fall back to the raw topic
+        subject, queries = topic, [topic]
     evidence: list[dict] = []
-    for hit in wikipedia_search(topic, limit=3):
+    for hit in wikipedia_search(subject, limit=3):
         text = wikipedia_extract(hit["title"])
         if text:
-            evidence.append({"source": "wikipedia", "title": hit["title"], "text": text[:1500]})
-    for x in searxng_search(topic, limit=5):
-        if x.get("content"):
-            evidence.append({"source": "web", "title": x["title"], "text": x["content"]})
-    for p in semantic_scholar_search(topic, limit=3):
+            url = "https://en.wikipedia.org/wiki/" + hit["title"].replace(" ", "_")
+            evidence.append({"source": "wikipedia", "title": hit["title"], "text": text[:1500], "url": url})
+    for query in queries:
+        for x in searxng_search(query, limit=3):
+            if x.get("content"):
+                evidence.append({"source": "web", "title": x["title"], "text": x["content"], "url": x.get("url", "")})
+    for p in semantic_scholar_search(subject, limit=3):
         if p.get("abstract"):
-            evidence.append({"source": "paper", "title": p["title"] or "", "text": p["abstract"]})
+            url = f"https://doi.org/{p['doi']}" if p.get("doi") else ""
+            evidence.append({"source": "paper", "title": p["title"] or "", "text": p["abstract"],
+                             "url": url, "doi": p.get("doi") or ""})
     return evidence[:max_items]
 
 
@@ -126,4 +163,18 @@ def propose_ideas(n: int = 6, hint: str = "") -> list[dict]:
         messages=[{"role": "system", "content": _SYSTEM}, {"role": "user", "content": user}],
         schema=IDEAS_SCHEMA, schema_name="ideas", temperature=0.9, max_tokens=1800,
     )
-    return result["ideas"][:n]
+    ideas = result["ideas"][:n]
+    # Vector dedup against everything already produced (prompt-level dedup is the belt,
+    # this is the suspenders - and it scales past what fits in a prompt).
+    try:
+        from ..store.memory import is_duplicate
+
+        kept = []
+        for idea in ideas:
+            dup, match = is_duplicate(f"{idea['topic']}. {idea['pitch']}")
+            if not dup:
+                kept.append(idea)
+        ideas = kept or ideas
+    except Exception:  # noqa: BLE001 - dedup failure must never block ideation
+        pass
+    return ideas

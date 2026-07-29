@@ -66,7 +66,9 @@ class PipelineRunner:
             payload = intr[0].value
             stage = payload.get("stage")
             if stage == "script":
-                await ch.send(embed=self._script_embed(rid, payload), view=gate_view(rid, "script"))
+                n = len(payload.get("candidates", []))
+                await ch.send(embed=self._script_embed(rid, payload),
+                              view=gate_view(rid, "script", n_candidates=n))
             elif stage == "audio":
                 secs = payload.get("seconds", 0)
                 # mp3 preview: Discord's inline player handles mp3 reliably, raw wav not.
@@ -103,17 +105,31 @@ class PipelineRunner:
     @staticmethod
     def _script_embed(rid: str, payload: dict) -> discord.Embed:
         spec = payload["spec"]
+        candidates = payload.get("candidates", [])
+        critiques = payload.get("critiques", [])
+        audited = payload.get("audited_index", 0)
         words = len(" ".join([spec["hook"]] + [b["narration"] for b in spec["beats"]]
                              + [spec["payoff"], spec["cta"]]).split())
         e = discord.Embed(
             title=f"Gate 1 - script (attempt {payload.get('attempt', 1)})",
-            description=f"**{spec['title']}**\n\n**Hook:** {spec['hook']}",
+            description=(f"Editor's pick: **candidate {audited + 1}** (shown in full below). "
+                         f"'Approve pick' takes it; 'Use N' switches (re-audited first).\n\n"
+                         f"**{spec['title']}**\n\n**Hook:** {spec['hook']}"),
             colour=discord.Colour.blurple(),
         )
         for i, b in enumerate(spec["beats"]):
             e.add_field(name=f"Beat {i + 1} - {b['caption']}", value=b["narration"][:1024], inline=False)
         e.add_field(name="Payoff", value=spec["payoff"], inline=False)
         e.add_field(name="CTA", value=spec["cta"], inline=False)
+        for i, c in enumerate(candidates):
+            if i == audited:
+                continue
+            crit = critiques[i] if i < len(critiques) else ""
+            e.add_field(
+                name=f"Candidate {i + 1}: {c['title'][:200]}",
+                value=(f"Hook: {c['hook']}\n*Editor: {crit}*")[:1024],
+                inline=False,
+            )
         claims = payload.get("claims", [])
         flagged = [c for c in claims if c.get("verdict") != "supported"]
         if claims:

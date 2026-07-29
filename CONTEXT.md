@@ -34,9 +34,14 @@ and **every published frame kept monetization-license-clean**.
   **CREDIBILITY LAYER**: research node (evidence.json) -> evidence-grounded scripts -> fact-checker
   audit (claims.json) with flagged claims on the Gate 1 card. Verified catching a real garbled fact
   (run factcheck-test-2).
-- **v1 backlog:** mechanical DOI/citation resolution, vector dedup memory (sqlite-vec), multi-candidate
-  scripts + Editor agent, Gate-1 taste-signal capture (ADR-0010), auto-resume orphaned mid-node runs,
-  metadata punctuation cleanup, boot-announce dedupe, Gemma prose A/B after NVIDIA upgrade.
+- **v1 CORE COMPLETE (2026-07-27):** mechanical citation resolution (claims carry citation_ok/url,
+  failed citations downgrade verdicts), vector production memory (calibrated dedup, runs backfilled),
+  3-candidate scripts + Editor ranking + re-audit-on-switch at Gate 1, taste-signal capture into
+  editorial-profile.md, query distillation for research (entity subject + keyword queries), self-healing
+  gateway (auto-starts llama), self-healing SearXNG (systemd autostart in WSL).
+- **Remaining backlog:** taste-profile consolidation pass, auto-resume orphaned mid-node runs,
+  metadata punctuation cleanup, boot-announce dedupe, nssm supervision (TASK-006), RAM upgrade
+  (TASK-008), Gemma prose A/B + Depth-Anything parallax after NVIDIA upgrade.
 - **VRAM rule reminder:** brain and SDXL cannot co-reside; `start-day.ps1` boots brain+bot, ComfyUI is
   opt-in (`-WithComfy`) or started per-stage by the render worker.
 - **Hardware correction (2026-07-23):** the box has **16 GB RAM**, not 64. See ADR-0011 / TASK-008.

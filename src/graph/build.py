@@ -21,7 +21,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, StateGraph
 from langgraph.types import Command, interrupt
 
-from ..agents.scriptwriter import draft_spec, narration_text
+from ..agents.scriptwriter import narration_text
 from ..config import get_settings
 from .state import ShortState
 
@@ -49,24 +49,28 @@ def research(state: ShortState) -> dict:
 
 def draft(state: ShortState) -> dict:
     from ..agents.researcher import evidence_digest
+    from ..agents.scriptwriter import draft_candidates
 
     ev_text = evidence_digest(state.get("evidence", []))
-    spec = draft_spec(state["topic"], state.get("script_feedback", ""), ev_text)
-    # Word budget is semantics, not schema: enforce with one corrective retry (target 130-155).
-    words = len(narration_text(spec).split())
-    if words < 120:
-        spec = draft_spec(
-            state["topic"],
-            f"Previous draft was only {words} spoken words; the target is 130-155. "
-            "Expand the beats with concrete, evidence-backed detail. "
-            + state.get("script_feedback", ""),
-            ev_text,
-        )
+    candidates = draft_candidates(state["topic"], state.get("script_feedback", ""), ev_text)
     return {
-        "spec": spec,
-        "narration_text": narration_text(spec),
+        "candidates": candidates,
         "script_attempts": state.get("script_attempts", 0) + 1,
         "script_feedback": "",
+    }
+
+
+def edit(state: ShortState) -> dict:
+    from ..agents.editor import rank_candidates
+
+    ranking = rank_candidates(state["candidates"])
+    best = ranking["best"]
+    spec = state["candidates"][best]
+    return {
+        "critiques": ranking["critiques"],
+        "audited_index": best,
+        "spec": spec,
+        "narration_text": narration_text(spec),
     }
 
 
@@ -74,20 +78,53 @@ def factcheck(state: ShortState) -> dict:
     import json
 
     from ..agents.factcheck import audit_spec
+    from ..tools.research import resolve_url
 
-    claims = audit_spec(state["spec"], state.get("evidence", []))
+    evidence = state.get("evidence", [])
+    claims = audit_spec(state["spec"], evidence)
+    # Mechanical resolution: a "supported" verdict only survives if its cited evidence
+    # item's URL actually resolves right now. Never trust self-citation (Risk R4).
+    resolved: dict[int, bool] = {}
+    for c in claims:
+        ref = c.get("evidence_ref", "none")
+        if not ref.isdigit() or int(ref) >= len(evidence):
+            c["citation_ok"] = False
+            continue
+        i = int(ref)
+        if i not in resolved:
+            resolved[i] = resolve_url(evidence[i].get("url", ""))
+        c["citation_ok"] = resolved[i]
+        c["citation_url"] = evidence[i].get("url", "")
+        if c["verdict"] == "supported" and not c["citation_ok"]:
+            c["verdict"] = "uncertain"
     run = _run_dir(state)
     (run / "claims.json").write_text(json.dumps(claims, indent=1), encoding="utf-8")
     return {"claims": claims}
 
 
-def gate_script(state: ShortState) -> Command[Literal["draft", "tts", "abort"]]:
+def gate_script(state: ShortState) -> Command[Literal["draft", "factcheck", "tts", "abort"]]:
     decision = interrupt({"stage": "script", "spec": state["spec"],
+                          "candidates": state.get("candidates", []),
+                          "critiques": state.get("critiques", []),
+                          "audited_index": state.get("audited_index", 0),
                           "claims": state.get("claims", []),
                           "attempt": state.get("script_attempts", 1)})
-    if decision.get("action") == "approve":
+    action = decision.get("action")
+    if action == "approve":  # approve = accept the audited/recommended candidate
         return Command(goto="tts")
-    if decision.get("action") == "regen":
+    if action == "pick":
+        i = int(decision.get("index", state.get("audited_index", 0)))
+        candidates = state.get("candidates", [state["spec"]])
+        i = min(max(i, 0), len(candidates) - 1)
+        if i == state.get("audited_index"):
+            return Command(goto="tts")
+        # A different candidate than the audited one: re-audit it, then re-present the gate
+        # so the human sees ITS fact-check flags before committing (the audit must never lag
+        # the chosen script).
+        chosen = candidates[i]
+        return Command(goto="factcheck", update={
+            "spec": chosen, "audited_index": i, "narration_text": narration_text(chosen)})
+    if action == "regen":
         return Command(goto="draft", update={"script_feedback": decision.get("feedback", "")})
     return Command(goto="abort", update={"error": "rejected at script gate"})
 
@@ -151,6 +188,12 @@ def gate_final(state: ShortState) -> Command[Literal["deliver", "abort"]]:
 def deliver(state: ShortState) -> dict:
     spec = state["spec"]
     run = _run_dir(state)
+    try:
+        from ..store.memory import remember_video
+
+        remember_video(state["run_id"], spec["title"], state.get("topic", ""))
+    except Exception:  # noqa: BLE001 - memory failures must never block delivery
+        pass
     meta = run / "metadata.md"
     tags = " ".join("#" + t.lstrip("#") for t in spec["hashtags"])
     meta.write_text(
@@ -172,6 +215,7 @@ def build_graph(checkpointer) -> object:
     g = StateGraph(ShortState)
     g.add_node("research", research)
     g.add_node("draft", draft)
+    g.add_node("edit", edit)
     g.add_node("factcheck", factcheck)
     g.add_node("gate_script", gate_script)
     g.add_node("tts", tts_node)
@@ -185,7 +229,8 @@ def build_graph(checkpointer) -> object:
 
     g.set_entry_point("research")
     g.add_edge("research", "draft")
-    g.add_edge("draft", "factcheck")
+    g.add_edge("draft", "edit")
+    g.add_edge("edit", "factcheck")
     g.add_edge("factcheck", "gate_script")
     g.add_edge("tts", "gate_audio")
     g.add_edge("visuals", "captions")
