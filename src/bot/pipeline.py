@@ -47,6 +47,12 @@ class PipelineRunner:
         cfg = {"configurable": {"thread_id": rid}}
         await self._advance(rid, Command(resume=payload), cfg)
 
+    async def retry_run(self, rid: str) -> None:
+        """Re-execute a run that errored mid-node: invoking with None input re-runs the
+        failed task from the last checkpoint (gates resume via buttons, errors via this)."""
+        cfg = {"configurable": {"thread_id": rid}}
+        await self._advance(rid, None, cfg)
+
     async def _advance(self, rid: str, graph_input, cfg: dict) -> None:
         async with self._lock(rid):
             graph = get_graph()
@@ -55,7 +61,10 @@ class PipelineRunner:
             except Exception as e:  # noqa: BLE001 - surfaced to the user, run stays resumable
                 log.exception("run %s failed", rid)
                 ch = await self._channel()
-                await ch.send(f"`{rid}`: pipeline error: `{str(e)[:300]}` (run is still resumable)")
+                await ch.send(
+                    f"`{rid}`: pipeline error: `{str(e)[:300]}`\n"
+                    f"Retry from the last checkpoint with: `/resume run_id:{rid}`"
+                )
                 return
         await self._present(rid, result)
 

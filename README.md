@@ -28,25 +28,29 @@ voiceover, flat-vector visuals, and animated diagrams into a finished 9:16 video
 
 | Layer | Pick |
 |---|---|
-| Agent brain | Qwen3-30B-A3B (Q4, `--cpu-moe`) via **llama.cpp Vulkan** |
+| Agent brain | **Qwen3-4B-Instruct-2507** via **llama.cpp Vulkan** (93 tok/s measured; 30B MoE planned after a RAM upgrade, see ADR-0011) |
 | Orchestration | **LangGraph** (MIT core) + `SqliteSaver` |
-| Control plane | **discord.py** 2.6 |
+| Control plane | **discord.py** 2.6+ |
+| Research | Wikipedia/Wikidata APIs + self-hosted **SearXNG** (WSL2 docker) |
 | TTS | **Kokoro-82M** (CPU) |
-| Images | **SDXL** via **ComfyUI-Zluda** |
-| Motion | Depth-Anything-V2 parallax + Ken-Burns + **Manim** diagrams |
-| Captions / assembly | whisperX + ffmpeg/MoviePy |
-| Memory | sqlite-vec, later pgvector |
-| Publishing | YouTube Data API (private draft; you click Publish) |
+| Images | **SDXL** + vector-style LoRA via **ComfyUI-Zluda** |
+| Motion | Ken-Burns over stills (Depth-Anything parallax + **Manim** diagrams planned) |
+| Captions / assembly | faster-whisper + ffmpeg/MoviePy |
+| Memory | sqlite-vec (topic dedup, live), later pgvector |
+| Publishing | manual upload by the owner (metadata auto-drafted; API publishing deferred) |
 
 Full stack with pinned versions and licenses: [`docs/STACK.md`](docs/STACK.md).
 
-## Quickstart (target state; Phase 0 in progress)
+## Quickstart
 
 ```powershell
-copy .env.example .env      # fill in Discord token + YouTube OAuth
-./start-day.ps1             # boot + health-gate the stack, ping Discord
-# then in Discord:  /new-short
+copy .env.example .env      # fill in the Discord bot token + server/channel ids
+./start-day.ps1             # boots brain + SearXNG + bot, health-gated
+# then in Discord:  /ideas  (or /new-short with your own topic)
 ```
+
+Full setup from scratch (models, ComfyUI-Zluda, WSL/SearXNG): `docs/STACK.md`, `docs/SETUP-COMFYUI.md`,
+`docs/RUNBOOK.md`.
 
 ## Repo map
 
@@ -62,8 +66,10 @@ start-day.ps1   the one-click launcher
 
 ## Status
 
-**Phase 0** (scaffold complete, services not yet stood up). See [`docs/ROADMAP.md`](docs/ROADMAP.md) and
-[`tasks/ledger.jsonl`](tasks/ledger.jsonl).
+**MVP shipped; v1 core complete.** The full loop works end to end: `/ideas` researches and proposes
+topics, the pipeline drafts three fact-checked candidate scripts, and after three human approval gates
+a finished 9:16 short with metadata lands ready for manual upload. See [`docs/ROADMAP.md`](docs/ROADMAP.md)
+and [`tasks/ledger.jsonl`](tasks/ledger.jsonl) for what's done and what's next.
 
 ## Contributing
 

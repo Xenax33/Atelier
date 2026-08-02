@@ -4,7 +4,7 @@ Responsibility: the human-in-the-loop surface. Renders Components V2 cards for t
 (script pick/edit, audio approval, final review), bridges button/modal interactions into LangGraph
 `Command(resume=...)`, and streams progress into the control channel.
 
-Rules: minimal Gateway Intents (no Message Content unless required); register **persistent** Views so
-gates survive a restart; heavy work never blocks the event loop (offload via run_in_executor/subprocess);
-final review is delivered as a Caddy/cloudflared LINK (masters exceed Discord's 10 MB cap).
+Rules: minimal Gateway Intents (no Message Content unless required); gate buttons are DynamicItems
+(regex custom_ids) so they survive restarts; heavy work never blocks the event loop (graph calls run
+via asyncio.to_thread); final review attaches the sub-10MB faststart proxy (master path in the message).
 """

@@ -56,7 +56,7 @@ through renders; the serialization rule then only covers SDXL / GPU-whisper / Or
 | Qwen3-30B-A3B Q4 `--cpu-moe` - AFTER RAM upgrade | ~2 GB VRAM; tok/s TBD on DDR4 (benchmark then) |
 | Kokoro TTS (CPU) | ~5-15x realtime (60 s clip in seconds) |
 | SDXL 768x1344 (ZLUDA, --lowvram) | ~1-5 min / image |
-| whisperX (CPU) | comfortably realtime-ish for a 60 s clip |
+| faster-whisper (CPU) | comfortably realtime-ish for a 60 s clip |
 | AI video (t2v/i2v) | **not feasible at a daily cadence - don't** (ADR-0004) |
 
 ## VRAM budget cheat-sheet (current, pre-RAM-upgrade)

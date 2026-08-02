@@ -111,6 +111,12 @@ def build_bot(settings: Settings) -> AtelierBot:
         # Fire-and-forget: the runner posts Gate 1 to the control channel when ready.
         asyncio.create_task(bot.pipeline.start(topic))
 
+    @bot.tree.command(name="resume", description="Retry a run that stopped with an error, from its last checkpoint")
+    @discord.app_commands.describe(run_id="The run id from the error message")
+    async def resume_cmd(interaction: discord.Interaction, run_id: str) -> None:
+        await interaction.response.send_message(f"Resuming `{run_id}` from its last checkpoint...")
+        asyncio.create_task(bot.pipeline.retry_run(run_id))
+
     @bot.tree.command(name="ideas", description="Have the researcher propose topic ideas to pick from")
     @discord.app_commands.describe(steer="Optional direction, e.g. 'astronomy' or 'something funny'")
     async def ideas_cmd(interaction: discord.Interaction, steer: str = "") -> None:

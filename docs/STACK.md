@@ -34,7 +34,7 @@ Notable deviation: captions start with **faster-whisper** (lighter; word timesta
 | Hero-frame (opt) | Flux.1 **schnell** GGUF | Apache-2.0 -> safe (**never Flux.1 dev**) |
 | Depth/parallax | Depth-Anything-V2 | Apache-2.0 |
 | Motion graphics | **Manim CE** (+ matplotlib) | MIT/BSD |
-| Captions | **whisperX** / faster-whisper | BSD-2/MIT |
+| Captions | **faster-whisper** (whisperX forced alignment planned) | MIT/BSD-2 |
 | Assembly | **MoviePy + ffmpeg** (1080×1920 H.264) | MIT/LGPL |
 | Orchestration | **LangGraph MIT core** + `SqliteSaver` | **MIT** (never langgraph-api/Platform - Elastic) |
 | Discord | **discord.py 2.6.x** | MIT |

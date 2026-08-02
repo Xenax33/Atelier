@@ -51,11 +51,11 @@ and **every published frame kept monetization-license-clean**.
 - **License / remote:** MIT (`LICENSE`); public repo `github.com/Xenax33/Atelier`.
 - **Health:** N/A (no services stood up yet). Phase-0 goal is to get `start-day.ps1` bringing the stack up green.
 
-## How to run (target state - not wired yet)
+## How to run
 
 ```powershell
-./start-day.ps1        # boots GPU servers, health-gates them, launches the app, pings Discord
-# then in Discord:  /new-short
+./start-day.ps1        # boots brain + SearXNG + bot, health-gated (-WithComfy pre-boots SDXL)
+# then in Discord:  /ideas   (or /new-short <topic>, /status, /resume <run_id>)
 ```
 
 Full boot + crash recovery: `docs/RUNBOOK.md`. Hardware truths & VRAM rules: `docs/HARDWARE.md`.

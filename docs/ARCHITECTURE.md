@@ -1,5 +1,31 @@
 > **This is the living source-of-truth architecture.** Generated 2026-07-22 from a 12-agent research+design pass. Keep it current; when a decision changes, add/append an ADR in `docs/adr/` and update the relevant section here.
 
+## As-built deltas (read these before trusting details below)
+
+The plan below was written before the build. These points changed during implementation - the ADRs
+and CONTEXT.md are authoritative where they differ:
+
+- **Brain: Qwen3-4B-Instruct-2507, not Qwen3-30B-A3B.** The hardware audit found 16 GB RAM (not 64),
+  killing the `--cpu-moe` plan for now; the 4B also beat the 8B on speed and schema discipline
+  (ADR-0011). The 30B plan reinstates after a RAM upgrade (TASK-008) - but note the research
+  correction: on DDR4 it would do ~12-15 tok/s, not the ~30 stated below.
+- **The 8 GB VRAM rule changed shape:** with a dense in-VRAM brain, the LLM itself is a heavy GPU
+  stage; the pipeline stops llama-server around SDXL renders automatically (HARDWARE.md).
+- **Captions: faster-whisper** (word timestamps), not whisperX; whisperX forced alignment remains
+  a planned upgrade.
+- **No publisher node.** The owner uploads manually (scope decision 2026-07-22); deliver writes
+  metadata.md with title/description/hashtags + AI-disclosure reminder. Private-draft API upload
+  is deferred, not cancelled (ADR-0005 rationale still applies when it lands).
+- **No Caddy/cloudflared review link.** Final review ships a sub-10MB faststart proxy attached in
+  Discord; the link infrastructure was never needed at current file sizes.
+- **Added beyond the plan:** ideation-first `/ideas` flow with SearXNG (WSL2 docker, infra/searxng/),
+  query distillation, 3-candidate drafts + Editor ranking, taste-signal capture, vector dedup memory
+  (sqlite-vec, calibrated), mechanical citation-URL resolution, self-healing gateway, /resume command.
+- **Visual style pipeline:** SDXL + Doctor Diffusion vector LoRA at dpmpp_2m/karras/32 with a
+  cudnn-off VAE decode (RDNA1 fix); Manim and Depth-Anything parallax are still planned, not built.
+- **Coming next:** archival visuals sourcing (TASK-020), research depth via key-free citation
+  registries + paper-search-mcp evaluation (TASK-021).
+
 ---
 
 # Local Open-Source Science-Shorts Studio - Definitive Build Plan

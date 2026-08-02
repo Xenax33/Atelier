@@ -61,10 +61,24 @@ def chat_json(
         "max_tokens": max_tokens,
     }
     url = s.model_gateway_base_url.rstrip("/") + "/chat/completions"
-    try:
-        r = httpx.post(url, json=body, timeout=_TIMEOUT)
-    except httpx.ConnectError:
-        _ensure_brain()
-        r = httpx.post(url, json=body, timeout=_TIMEOUT)
-    r.raise_for_status()
-    return json.loads(r.json()["choices"][0]["message"]["content"])
+    last_err = ""
+    for attempt in range(3):
+        try:
+            r = httpx.post(url, json=body, timeout=_TIMEOUT)
+        except httpx.ConnectError:
+            _ensure_brain()
+            r = httpx.post(url, json=body, timeout=_TIMEOUT)
+        r.raise_for_status()
+        choice = r.json()["choices"][0]
+        content = choice["message"].get("content") or ""
+        if content.strip():
+            try:
+                return json.loads(content)
+            except json.JSONDecodeError as e:
+                last_err = f"unparseable JSON ({e}); finish_reason={choice.get('finish_reason')}"
+        else:
+            # Empty completion with HTTP 200: small models occasionally emit immediate EOS
+            # even under grammar constraints (seen live 2026-07-29). Retry, slightly warmer.
+            last_err = f"empty completion; finish_reason={choice.get('finish_reason')}"
+        body["temperature"] = min(1.0, (body.get("temperature") or 0.7) + 0.15)
+    raise RuntimeError(f"gateway returned no usable JSON after 3 attempts: {last_err}")

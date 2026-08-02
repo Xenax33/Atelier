@@ -5,14 +5,15 @@ Operational playbook. Fill in the TODOs as Phase 0 stands each service up.
 ## Daily boot
 
 ```powershell
-./start-day.ps1          # boots GPU servers, health-gates, launches app, pings Discord
-./start-day.ps1 -SkipComfy   # text-only iteration (no SDXL)
+./start-day.ps1              # brain + SearXNG + bot (ComfyUI starts per-render automatically)
+./start-day.ps1 -WithComfy   # also pre-boot ComfyUI (VRAM rule: brain and SDXL cannot co-reside)
 ```
 
-Expected green state (target):
-- `http://127.0.0.1:8080/v1/models` returns the loaded Qwen model.
-- `http://127.0.0.1:8188` (ComfyUI) responds.
-- Discord `#control` shows a "stack ready" message.
+Expected green state:
+- `http://127.0.0.1:8080/health` returns 200 (llama gateway, Qwen3-4B).
+- `http://127.0.0.1:8888/healthz` returns 200 (SearXNG in WSL).
+- Discord `#control` shows the boot card; `/status` reports the stack.
+- ComfyUI (`:8188`) is only up during renders or with `-WithComfy` - by design (VRAM rule).
 
 ## Recover from a crash
 

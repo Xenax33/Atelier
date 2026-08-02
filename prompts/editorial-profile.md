@@ -25,3 +25,6 @@ _Last updated: 2026-07-22 (seed - no signal captured yet)._
 
 ## Signal log (append-only; consolidated periodically)
 <!-- date | signal-type(explicit|pick|edit-diff|reaction) | observation -->
+- 2026-07-29 | pick-idea | chose 'The Collatz Conjecture (1950s–present)' from batch 20260729-2948fe
+- 2026-07-29 | regen-feedback | 20260729-a8fea8: I like the first one you mentioned but since the video needs to be for 60 seconds then it should explain the whole problem such that a 5 year old can understand it. and remember this that these videos are not for technical people or adults. i mean they are but they should be like so
+- 2026-07-29 | pick-script | 20260729-a8fea8: chose candidate #2 at script gate

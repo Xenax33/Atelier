@@ -1,0 +1,32 @@
+[
+ {
+  "topic": "Discovery of Eris in 2005",
+  "pitch": "In 2005, astronomers spotted a distant icy world beyond Neptune, initially thought to be a comet \u2014 but it turned out to be a dwarf planet, prompting a major rethink of what defines a planet in our solar system.",
+  "hook_angle": "How did one icy object change our understanding of what a planet really is?"
+ },
+ {
+  "topic": "The Collatz Conjecture (1950s\u2013present)",
+  "pitch": "A simple rule: if a number is even, divide it by two; if odd, multiply by three and add one. No matter how far you go, the sequence always seems to reach 1. But no one has proven it \u2014 not even a computer has found a counterexample.",
+  "hook_angle": "What if this rule \u2014 so simple it's childlike \u2014 hides a secret about the universe that we\u2019ve never cracked?"
+ },
+ {
+  "topic": "Accidental invention of Post-It notes",
+  "pitch": "A failed adhesive experiment at 3M in 1969 led to a sticky strip that didn\u2019t crack \u2014 instead, it peeled cleanly and stayed flexible. That small flaw became the world\u2019s most used office product.",
+  "hook_angle": "What if a lab mistake didn\u2019t fail \u2014 it accidentally created the world\u2019s most useful sticky note?"
+ },
+ {
+  "topic": "Microwave oven from a melted candy bar",
+  "pitch": "In 1946, a researcher tried to melt a candy bar to find a new way to heat food \u2014 the result was a prototype that could cook food in seconds. That kitchen experiment became the microwave oven.",
+  "hook_angle": "What if a failed candy experiment in a lab accidentally created the kitchen appliance that changed how we eat?"
+ },
+ {
+  "topic": "Teflon invention from a failed dye",
+  "pitch": "A failed chemical experiment in the 1930s produced a substance that didn\u2019t melt, didn\u2019t burn, and resisted sticking \u2014 a miracle material that would one day dominate cookware and electronics.",
+  "hook_angle": "How did a chemical failure in a lab give birth to a non-stick revolution?"
+ },
+ {
+  "topic": "The Bridges of K\u00f6nigsberg puzzle",
+  "pitch": "In 1736, a city in Prussia had seven bridges connecting islands \u2014 a man asked if you could walk through all of them without crossing any twice. The answer? Impossible \u2014 and that led to the birth of graph theory.",
+  "hook_angle": "What if a puzzle about walking across bridges became the foundation of modern math and computer science?"
+ }
+]
