@@ -194,13 +194,16 @@ def visuals(state: ShortState) -> dict:
     beats = [dict(b) for b in state["spec"]["beats"]]
     # Visual Director pass: translate narration into depictable scenes (concept -> physical
     # metaphor, never text/numbers). Fixes the "random shapes" failure. Fallback: writer prompts.
+    styles = ["painterly"] * len(beats)  # safe default (people assumed)
     try:
         from ..agents.visdir import direct_visuals
 
-        directed = direct_visuals(beats, state.get("topic", ""))
-        for b, p in zip(beats, directed, strict=True):
+        directed, has_people = direct_visuals(beats, state.get("topic", ""))
+        for j, (b, p) in enumerate(zip(beats, directed, strict=True)):
             if p.strip():
                 b["visual_prompt"] = p.strip()
+            # Smart routing (2026-08-02): cinematic realism only for people-free scenes.
+            styles[j] = "painterly" if has_people[j] else "cinematic"
     except Exception:  # noqa: BLE001
         pass
     paths: list[str | None] = [None] * len(beats)
@@ -220,7 +223,8 @@ def visuals(state: ShortState) -> dict:
     todo = [i for i in range(len(beats)) if paths[i] is None]
     if todo:
         rendered = render_beat_stills(
-            [beats[i]["visual_prompt"] for i in todo], assets, REPO_ROOT, indices=todo)
+            [beats[i]["visual_prompt"] for i in todo], assets, REPO_ROOT, indices=todo,
+            styles=[styles[i] for i in todo])
         for i, p in zip(todo, rendered, strict=True):
             paths[i] = p
     return {"image_paths": [p for p in paths if p], "archival_used": used}

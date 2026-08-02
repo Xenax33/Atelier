@@ -24,14 +24,30 @@ LLAMA_EXE = "bin\\llama-b10092\\llama-server.exe"
 LLAMA_MODEL = "models\\Qwen3-4B-Instruct-2507-UD-Q4_K_XL.gguf"
 LLAMA_BASE = "http://127.0.0.1:8080"
 
-# R&D 2026-08-02 (docs/research/2026-08-02-sdxl-vector-adherence.md): subject comes FIRST
-# (tokens earlier in the prompt get more attention), style words go AFTER as a suffix with
-# the DD LoRA's control words; short functional negative (quality-spam negatives hurt SDXL).
-STYLE_SUFFIX = (
-    ", vector, complex details, outlines, flat design illustration, "
-    "warm amber and deep navy palette, centered composition"
-)
-NEGATIVE = "photo, photorealistic, 3d render, gradient, blurry, text, numbers, watermark, deformed"
+# Smart-routing style presets (user decision 2026-08-02, amends ADR-0008): painterly for
+# any scene with people (hides anatomy inconsistency, no realistic-person disclosure risk),
+# cinematic semi-real only for people-free establishing shots. Subject stays FIRST in the
+# prompt; style is a suffix (R&D: docs/research/2026-08-02-sdxl-vector-adherence.md).
+STYLE_PRESETS = {
+    "painterly": {
+        "suffix": (", rich digital painting, storybook illustration, painterly brush strokes, "
+                   "warm cinematic lighting, detailed environment, atmospheric depth"),
+        "negative": "photo, photorealistic, 3d render, flat design, vector, blurry, text, numbers, watermark, deformed",
+        "lora": 0.0,
+    },
+    "cinematic": {
+        "suffix": (", cinematic film still, dramatic volumetric lighting, shallow depth of field, "
+                   "highly detailed, moody atmosphere"),
+        "negative": "cartoon, illustration, vector, flat design, anime, blurry, text, numbers, watermark, deformed, bad anatomy",
+        "lora": 0.0,
+    },
+    "vector": {  # retired default, kept selectable (DD LoRA)
+        "suffix": ", vector, complex details, outlines, flat design illustration, warm amber and deep navy palette, centered composition",
+        "negative": "photo, photorealistic, 3d render, gradient, blurry, text, numbers, watermark, deformed",
+        "lora": 0.65,
+    },
+}
+DEFAULT_STYLE = "painterly"
 
 # Warm renders are ~3-4 min, BUT a wiped MIOpen/ZLUDA cache forces a full kernel re-tune that
 # can legitimately take 30-60 min (seen live 2026-08-02: ~/.miopen deleted, timeout killed a
@@ -43,7 +59,6 @@ PER_IMAGE_TIMEOUT_S = 4500
 SAMPLER_NAME = "dpmpp_2m"
 SCHEDULER = "karras"
 STEPS = 32
-LORA_STRENGTH = 0.65  # R&D: 0.8 let style dominate content; flat-vector survives 0.65 easily
 # PAG (Perturbed-Attention Guidance): structural-coherence fix, custom node
 # sd-perturbed-attention in the ComfyUI-Zluda install. Paper values: CFG 4 + PAG 3.
 USE_PAG = True
@@ -108,7 +123,8 @@ def stop_comfy() -> None:
     subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, check=False)
 
 
-def _workflow(visual_prompt: str, seed: int) -> dict:
+def _workflow(visual_prompt: str, seed: int, style: str = DEFAULT_STYLE) -> dict:
+    preset = STYLE_PRESETS.get(style, STYLE_PRESETS[DEFAULT_STYLE])
     return {
         "ckpt": {"class_type": "CheckpointLoaderSimple",
                  "inputs": {"ckpt_name": "sd_xl_base_1.0.safetensors"}},
@@ -118,11 +134,11 @@ def _workflow(visual_prompt: str, seed: int) -> dict:
         "lora": {"class_type": "LoraLoader", "inputs": {
             "model": ["ckpt", 0], "clip": ["ckpt", 1],
             "lora_name": "DD-vector-v2.safetensors",
-            "strength_model": LORA_STRENGTH, "strength_clip": LORA_STRENGTH}},
+            "strength_model": preset["lora"], "strength_clip": preset["lora"]}},
         "vae": {"class_type": "VAELoader", "inputs": {"vae_name": "sdxl_vae_fp16_fix.safetensors"}},
         "pos": {"class_type": "CLIPTextEncode",
-                "inputs": {"text": visual_prompt + STYLE_SUFFIX, "clip": ["lora", 1]}},
-        "neg": {"class_type": "CLIPTextEncode", "inputs": {"text": NEGATIVE, "clip": ["lora", 1]}},
+                "inputs": {"text": visual_prompt + preset["suffix"], "clip": ["lora", 1]}},
+        "neg": {"class_type": "CLIPTextEncode", "inputs": {"text": preset["negative"], "clip": ["lora", 1]}},
         "latent": {"class_type": "EmptyLatentImage",
                    "inputs": {"width": 768, "height": 1344, "batch_size": 1}},
         # Quality settings per TASK-011 (user accepted longer renders): dpmpp_2m+karras at
@@ -145,8 +161,10 @@ def _workflow(visual_prompt: str, seed: int) -> dict:
     }
 
 
-def _render_one(visual_prompt: str, seed: int, out_file: pathlib.Path) -> None:
-    r = httpx.post(COMFY_BASE + "/prompt", json={"prompt": _workflow(visual_prompt, seed)}, timeout=30)
+def _render_one(visual_prompt: str, seed: int, out_file: pathlib.Path,
+                style: str = DEFAULT_STYLE) -> None:
+    r = httpx.post(COMFY_BASE + "/prompt",
+                   json={"prompt": _workflow(visual_prompt, seed, style)}, timeout=30)
     r.raise_for_status()
     pid = r.json()["prompt_id"]
     deadline = time.time() + PER_IMAGE_TIMEOUT_S
@@ -205,12 +223,15 @@ def _render_one(visual_prompt: str, seed: int, out_file: pathlib.Path) -> None:
 
 def render_beat_stills(prompts: list[str], run_assets_dir: str | pathlib.Path,
                        repo_root: str | pathlib.Path, base_seed: int = 1000,
-                       indices: list[int] | None = None) -> list[str]:
+                       indices: list[int] | None = None,
+                       styles: list[str] | None = None) -> list[str]:
     """Render one still per beat prompt with full GPU choreography. Returns file paths.
-    indices: beat numbers used for filenames (so archival beats can interleave)."""
+    indices: beat numbers used for filenames (so archival beats can interleave).
+    styles: per-prompt style preset names (smart routing); DEFAULT_STYLE when omitted."""
     assets = pathlib.Path(run_assets_dir)
     root = pathlib.Path(repo_root)
     idx = indices if indices is not None else list(range(len(prompts)))
+    sty = styles if styles is not None else [DEFAULT_STYLE] * len(prompts)
     stop_llama()
     time.sleep(3)
     if not start_comfy():
@@ -218,9 +239,9 @@ def render_beat_stills(prompts: list[str], run_assets_dir: str | pathlib.Path,
         raise RuntimeError("ComfyUI failed to start (see docs/SETUP-COMFYUI.md)")
     try:
         paths = []
-        for i, prompt in zip(idx, prompts, strict=True):
+        for i, prompt, style in zip(idx, prompts, sty, strict=True):
             out = assets / f"beat_{i:02d}.png"
-            _render_one(prompt, base_seed + i, out)
+            _render_one(prompt, base_seed + i, out, style)
             paths.append(str(out))
         return paths
     finally:

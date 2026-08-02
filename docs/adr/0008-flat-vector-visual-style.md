@@ -20,3 +20,12 @@ diagrams/timelines. Never name real brands/channels in prompts (generic style de
 ## Alternatives rejected
 - **Semi-photoreal** - harder consistency, higher render time, more disclosure/likeness risk.
 - **Mixed per-video** - weaker brand consistency early; more prompt/LoRA management.
+
+## Amendment (2026-08-02): smart-routed painterly/cinematic replaces flat-vector default
+User decision after a three-way same-seed style comparison: flat vector looked underrefined.
+New default: **painterly storybook** for any scene containing people (hides SDXL anatomy
+inconsistency, avoids realistic-person disclosure risk, historical figures stay interpretive);
+**cinematic semi-real** only for people-free establishing shots (Visual Director returns
+has_people per beat). The DD vector LoRA preset remains selectable (STYLE_PRESETS in
+workers/visuals.py). Rationale trade-off noted: richer styles adhere slightly less than the
+PAG-vector stack; PAG stays on for all styles.

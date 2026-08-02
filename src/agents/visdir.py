@@ -15,8 +15,9 @@ _SCHEMA = {
     "type": "object",
     "properties": {
         "prompts": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"type": "string"}},
+        "has_people": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"type": "boolean"}},
     },
-    "required": ["prompts"],
+    "required": ["prompts", "has_people"],
     "additionalProperties": False,
 }
 
@@ -36,6 +37,8 @@ EVERY prompt must contain, in this order:
 3. The setting and lighting (time of day, place, mood).
 4. A composition hint for a vertical 9:16 frame.
 Keep each under 40 words. No style words (style is applied downstream). No brand names.
+Also return has_people: for each prompt, true if any person/figure appears in the scene
+(style routing: people-free scenes may render more realistically).
 
 WORKED EXAMPLES of the required translation:
 - narration "every number ever tested shrinks down to 1" ->
@@ -65,10 +68,10 @@ def _violations(prompts: list[str]) -> list[int]:
     return bad
 
 
-def direct_visuals(beats: list[dict], topic: str) -> list[str]:
-    """Returns one depictable SDXL prompt per beat, same order. Deterministically validated:
-    prompts containing digits or banned concepts trigger one corrective retry. Raises on
-    failure (caller falls back to the scriptwriter's original prompts)."""
+def direct_visuals(beats: list[dict], topic: str) -> tuple[list[str], list[bool]]:
+    """Returns (prompts, has_people) per beat, same order. Deterministically validated:
+    prompts containing digits or banned concepts trigger corrective retries. Raises on
+    failure (caller falls back to the scriptwriter's original prompts + painterly style)."""
     # Narration ONLY - the writer's draft prompts anchor small models into editing instead
     # of translating (observed live: every number/formula survived the first design).
     lines = "\n".join(f"[{i}] {b['narration']}" for i, b in enumerate(beats))
@@ -92,4 +95,5 @@ def direct_visuals(beats: list[dict], topic: str) -> list[str]:
         prompts = result["prompts"]
     if len(prompts) < len(beats):
         prompts += [b.get("visual_prompt", "") for b in beats[len(prompts):]]
-    return prompts[: len(beats)]
+    people = list(result.get("has_people", [])) + [True] * len(beats)  # default safe: True
+    return prompts[: len(beats)], people[: len(beats)]

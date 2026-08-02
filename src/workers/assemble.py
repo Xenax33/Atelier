@@ -23,13 +23,30 @@ def _beat_durations(spec: dict, total: float) -> list[float]:
     return [total * c / total_words for c in counts]
 
 
-def _caption_chunks(words: list[dict], size: int = 3) -> list[tuple[str, float, float]]:
-    chunks = []
-    for i in range(0, len(words), size):
-        group = words[i : i + size]
-        text = " ".join(w["word"] for w in group)
-        chunks.append((text, group[0]["start"], group[-1]["end"]))
-    return chunks
+def _caption_chunks(words: list[dict], target_s: float = 1.9, max_words: int = 7,
+                    min_s: float = 1.0) -> list[tuple[str, float, float]]:
+    """Group words into READABLE chunks by TIME, not a fixed word count (user feedback:
+    3-word flashes were unreadable). A chunk closes when it reaches ~target_s seconds or
+    max_words; chunks shorter than min_s get merged forward."""
+    chunks: list[tuple[str, float, float]] = []
+    group: list[dict] = []
+    for w in words:
+        group.append(w)
+        span = group[-1]["end"] - group[0]["start"]
+        if span >= target_s or len(group) >= max_words:
+            chunks.append((" ".join(x["word"] for x in group), group[0]["start"], group[-1]["end"]))
+            group = []
+    if group:
+        chunks.append((" ".join(x["word"] for x in group), group[0]["start"], group[-1]["end"]))
+    # Merge blink-length chunks into their neighbor so nothing flashes by.
+    merged: list[tuple[str, float, float]] = []
+    for c in chunks:
+        if merged and (c[2] - c[1]) < min_s and len(merged[-1][0].split()) + len(c[0].split()) <= max_words + 2:
+            prev = merged.pop()
+            merged.append((prev[0] + " " + c[0], prev[1], c[2]))
+        else:
+            merged.append(c)
+    return merged
 
 
 def assemble(spec: dict, audio_path: str, image_paths: list[str], words_json: str,
@@ -85,6 +102,9 @@ def assemble(spec: dict, audio_path: str, image_paths: list[str], words_json: st
                 method="caption",
                 size=(caption_box_w, None),
                 text_align="center",
+                # margin gives the stroke room below descenders - without it the outline's
+                # bottom edge clips (user-reported).
+                margin=(10, 14),
             )
             .with_start(start)
             .with_duration(min(end - start + 0.08, total - start))
