@@ -43,6 +43,7 @@ def chat_json(
     schema_name: str = "output",
     temperature: float = 0.7,
     max_tokens: int = 1600,
+    timeout_s: float = 300.0,
 ) -> dict[str, Any]:
     """Schema-constrained chat completion. Returns the parsed JSON object.
 
@@ -61,13 +62,14 @@ def chat_json(
         "max_tokens": max_tokens,
     }
     url = s.model_gateway_base_url.rstrip("/") + "/chat/completions"
+    call_timeout = httpx.Timeout(timeout_s, connect=10.0)
     last_err = ""
     for _attempt in range(3):
         try:
-            r = httpx.post(url, json=body, timeout=_TIMEOUT)
+            r = httpx.post(url, json=body, timeout=call_timeout)
         except httpx.ConnectError:
             _ensure_brain()
-            r = httpx.post(url, json=body, timeout=_TIMEOUT)
+            r = httpx.post(url, json=body, timeout=call_timeout)
         r.raise_for_status()
         choice = r.json()["choices"][0]
         content = choice["message"].get("content") or ""

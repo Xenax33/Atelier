@@ -72,8 +72,29 @@ class AtelierBot(commands.Bot):
             colour=discord.Colour.green(),
         )
         embed.add_field(name="Brain", value="Qwen3-4B-Instruct-2507 via llama.cpp Vulkan", inline=False)
-        embed.add_field(name="Commands", value="/status, or use the buttons", inline=False)
-        await channel.send(embed=embed, view=ControlPanel(self.settings.model_gateway_base_url))
+        embed.add_field(name="Commands",
+                        value="/ideas, /new-short, /status, /style, /consolidate-taste, /resume",
+                        inline=False)
+        # Reuse the previous announce card instead of spamming one per boot: the message id
+        # persists in state/, and editing re-arms the buttons with a fresh view.
+        import json
+        import pathlib
+
+        marker = pathlib.Path(self.settings.state_dir) / "bot-announce.json"
+        view = ControlPanel(self.settings.model_gateway_base_url)
+        try:
+            old_id = json.loads(marker.read_text(encoding="utf-8"))["message_id"]
+            old = await channel.fetch_message(old_id)
+            await old.edit(embed=embed, view=view)
+            return
+        except (OSError, ValueError, KeyError, discord.HTTPException):
+            pass
+        msg = await channel.send(embed=embed, view=view)
+        try:
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_text(json.dumps({"message_id": msg.id}), encoding="utf-8")
+        except OSError:
+            pass
 
 
 def build_bot(settings: Settings) -> AtelierBot:
@@ -116,6 +137,31 @@ def build_bot(settings: Settings) -> AtelierBot:
     async def resume_cmd(interaction: discord.Interaction, run_id: str) -> None:
         await interaction.response.send_message(f"Resuming `{run_id}` from its last checkpoint...")
         asyncio.create_task(bot.pipeline.retry_run(run_id))
+
+    @bot.tree.command(name="style", description="What does the studio think your editorial taste is?")
+    async def style_cmd(interaction: discord.Interaction) -> None:
+        from ..store.taste import profile_text
+
+        text = profile_text()
+        await interaction.response.send_message(
+            "My current model of your taste (edit prompts/editorial-profile.md to correct me):\n"
+            f"```md\n{text[:1800]}\n```", ephemeral=True,
+        )
+
+    @bot.tree.command(name="consolidate-taste",
+                      description="Fold logged signals into the editorial profile (reflection pass)")
+    async def consolidate_cmd(interaction: discord.Interaction) -> None:
+        await interaction.response.send_message("Consolidating the taste profile...")
+        from ..store.taste import consolidate_profile
+
+        try:
+            new_text = await asyncio.to_thread(consolidate_profile)
+        except Exception as e:  # noqa: BLE001 - surfaced; old profile is kept on failure
+            await interaction.followup.send(f"consolidation failed (profile unchanged): `{str(e)[:200]}`")
+            return
+        await interaction.followup.send(
+            f"Profile consolidated (backup kept as .bak):\n```md\n{new_text[:1600]}\n```"
+        )
 
     @bot.tree.command(name="ideas", description="Have the researcher propose topic ideas to pick from")
     @discord.app_commands.describe(steer="Optional direction, e.g. 'astronomy' or 'something funny'")

@@ -1,30 +1,33 @@
 # Editorial profile - the user's learned taste (read on EVERY script run)
 
-> This file is the **editorial taste model** (ADR-0010). The Scriptwriter and Editor load it on every run.
-> It is updated from the user's Discord signals: explicit preferences, Gate-1 candidate picks, and the diff
-> between drafted vs. approved scripts. A periodic reflection pass consolidates it. The user can inspect and
-> correct it via a Discord command (`what do you think my style is?`). **Keep it concise and current.**
+> This file is the editorial taste model (ADR-0010). The Scriptwriter and Editor load it on
+> every run. It is updated from Discord signals and consolidated via /consolidate-taste.
+> Inspect with /style; correct by editing this file directly.
 
-_Last updated: 2026-07-22 (seed - no signal captured yet)._
+_Last updated: 2026-08-02 (consolidated)._
 
 ## Voice & tone
-- _(learned from edits - e.g. "conversational, not lecture-y"; "dry wit ok, no cringe")_ - TBD
+- Clear, simple, and warm — like a friendly explainer talking to a child.
+- Avoid jargon or complex language. Use everyday words.
 
 ## Hook preferences
-- _(e.g. "curiosity-gap in ≤2s, ≤12 words"; "avoid rhetorical questions")_ - TBD
+- Start with a curious question: 'Have you ever wondered what happens when you keep counting numbers in a fun way?'
+- Begin with a surprising fact: 'This math problem has been stuck for 70 years — and it’s still unsolved.'
 
 ## Structure & pacing
-- _(e.g. "surprising fact by 0:08"; "one soft CTA only"; "≤130 words total")_ - TBD
+- Open with a hook in under 3 seconds.
+- Explain the core idea in 3–4 clear steps, using simple analogies.
+- End with a light, open-ended question to invite curiosity: 'What would you do if you found the answer?'
 
 ## Topic taste
-- _(what the user greenlit vs rejected; niches they lean into within science-history)_ - TBD
+- Mathematical puzzles with real-world wonder (e.g. Collatz Conjecture).
+- Simple science ideas that feel like magic or mystery.
+- Problems that have been studied for decades but still have no known solution.
 
 ## Hard nos
-- No clickbait / no overclaiming. No unverified "facts". No naming reference channels in prompts.
-- _(add user-specified nos here)_ - TBD
+- No clickbait / no overclaiming. No unverified 'facts'. No naming reference channels in prompts.
 
 ## Signal log (append-only; consolidated periodically)
-<!-- date | signal-type(explicit|pick|edit-diff|reaction) | observation -->
 - 2026-07-29 | pick-idea | chose 'The Collatz Conjecture (1950s–present)' from batch 20260729-2948fe
 - 2026-07-29 | regen-feedback | 20260729-a8fea8: I like the first one you mentioned but since the video needs to be for 60 seconds then it should explain the whole problem such that a 5 year old can understand it. and remember this that these videos are not for technical people or adults. i mean they are but they should be like so
 - 2026-07-29 | pick-script | 20260729-a8fea8: chose candidate #2 at script gate

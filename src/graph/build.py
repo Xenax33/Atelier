@@ -233,13 +233,22 @@ def deliver(state: ShortState) -> dict:
     except Exception:  # noqa: BLE001 - memory failures must never block delivery
         pass
     meta = run / "metadata.md"
+
+    def _clean(s: str) -> str:
+        """Published metadata gets plain ASCII punctuation (owner preference: the em-dash
+        habit of LLMs reads as AI-generated)."""
+        return (s.replace("—", " - ").replace("–", "-").replace("…", "...")
+                 .replace("‘", "'").replace("’", "'")
+                 .replace("“", '"').replace("”", '"').replace("  ", " "))
+
+    title, description = _clean(spec["title"]), _clean(spec["description"])
     tags = " ".join("#" + t.lstrip("#") for t in spec["hashtags"])
     credits = ""
     if state.get("archival_used"):
         lines = "\n".join("- " + u["attribution"] for u in state["archival_used"])
         credits = f"\n\n## Image credits (paste into the YouTube description)\n{lines}\n"
     meta.write_text(
-        f"# {spec['title']}\n\n{spec['description']}\n\n{tags}\n{credits}\n"
+        f"# {title}\n\n{description}\n\n{tags}\n{credits}\n"
         f"AI-DISCLOSURE REMINDER: tick 'altered or synthetic content' when uploading.\n"
         f"Master: {state['master_path']}\n",
         encoding="utf-8",
