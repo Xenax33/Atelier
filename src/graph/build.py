@@ -158,12 +158,41 @@ def gate_audio(state: ShortState) -> Command[Literal["visuals", "draft", "abort"
 
 
 def visuals(state: ShortState) -> dict:
+    """Per beat: archival image if the writer flagged one AND a license-safe, relevant
+    candidate exists (CPU/network work, done BEFORE the GPU dance); SDXL for the rest.
+    Archival failures fall back to SDXL silently - archival is an enhancement, never a blocker."""
+    from ..tools.archival import (
+        ARCHIVAL_MIN_SCORE,
+        fetch_and_frame,
+        find_archival,
+        score_candidates,
+    )
     from ..workers.visuals import render_beat_stills
 
     run = _run_dir(state)
-    prompts = [b["visual_prompt"] for b in state["spec"]["beats"]]
-    paths = render_beat_stills(prompts, run / "assets", REPO_ROOT)
-    return {"image_paths": paths}
+    assets = run / "assets"
+    beats = state["spec"]["beats"]
+    paths: list[str | None] = [None] * len(beats)
+    used: list[dict] = []
+    for i, b in enumerate(beats):
+        subject = (b.get("archival_subject") or "").strip()
+        if not subject:
+            continue
+        try:
+            scored = score_candidates(find_archival(subject), subject, b.get("visual_prompt", ""))
+            if scored and scored[0][0] >= ARCHIVAL_MIN_SCORE:
+                best = scored[0][1]
+                paths[i] = fetch_and_frame(best, str(assets / f"beat_{i:02d}.png"))
+                used.append({"beat": i, "score": scored[0][0], **best.to_dict()})
+        except Exception:  # noqa: BLE001 - fall through to SDXL
+            pass
+    todo = [i for i in range(len(beats)) if paths[i] is None]
+    if todo:
+        rendered = render_beat_stills(
+            [beats[i]["visual_prompt"] for i in todo], assets, REPO_ROOT, indices=todo)
+        for i, p in zip(todo, rendered, strict=True):
+            paths[i] = p
+    return {"image_paths": [p for p in paths if p], "archival_used": used}
 
 
 def captions(state: ShortState) -> dict:
@@ -205,8 +234,12 @@ def deliver(state: ShortState) -> dict:
         pass
     meta = run / "metadata.md"
     tags = " ".join("#" + t.lstrip("#") for t in spec["hashtags"])
+    credits = ""
+    if state.get("archival_used"):
+        lines = "\n".join("- " + u["attribution"] for u in state["archival_used"])
+        credits = f"\n\n## Image credits (paste into the YouTube description)\n{lines}\n"
     meta.write_text(
-        f"# {spec['title']}\n\n{spec['description']}\n\n{tags}\n\n"
+        f"# {spec['title']}\n\n{spec['description']}\n\n{tags}\n{credits}\n"
         f"AI-DISCLOSURE REMINDER: tick 'altered or synthetic content' when uploading.\n"
         f"Master: {state['master_path']}\n",
         encoding="utf-8",

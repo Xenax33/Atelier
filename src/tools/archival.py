@@ -146,6 +146,93 @@ def openverse_search(subject: str, limit: int = 6) -> list[ArchivalCandidate]:
     return out
 
 
+_clip = None
+# Calibrated 2026-08-02 on live data: wrong-subject candidates score ~0.19-0.20, genuine
+# matches 0.34-0.49 (CLIP cosines run low; do not expect near-1.0). 0.28 sits in the gap.
+ARCHIVAL_MIN_SCORE = 0.28
+
+
+def _clip_model():
+    global _clip
+    if _clip is None:
+        from sentence_transformers import SentenceTransformer
+
+        _clip = SentenceTransformer("clip-ViT-B-32", device="cpu")
+    return _clip
+
+
+def _get_bytes(url: str) -> bytes:
+    r = _get(url, {})
+    r.raise_for_status()
+    return r.content
+
+
+def score_candidates(cands: list[ArchivalCandidate], subject: str,
+                     visual_prompt: str = "") -> list[tuple[float, ArchivalCandidate]]:
+    """Rank by CLIP image-text similarity (thumbnails only) + title match. CPU, ~100ms/img.
+    Weights per the research doc: subject dominates; title match catches CLIP's weakness
+    on engravings/diagrams (a plate titled 'air pump' is a strong signal)."""
+    import io
+
+    from PIL import Image
+    from sentence_transformers import util
+
+    from .research import title_similarity
+
+    imgs, kept = [], []
+    for c in cands:
+        try:
+            imgs.append(Image.open(io.BytesIO(_get_bytes(c.thumb_url))).convert("RGB"))
+            kept.append(c)
+        except Exception:  # noqa: BLE001 - dead thumbs just drop out
+            continue
+    if not kept:
+        return []
+    model = _clip_model()
+    img_emb = model.encode(imgs)
+    txt_emb = model.encode([subject, visual_prompt or subject])
+    sims = util.cos_sim(img_emb, txt_emb)
+    scored = []
+    for i, c in enumerate(kept):
+        s = (0.6 * float(sims[i][0]) + 0.15 * float(sims[i][1])
+             + 0.25 * title_similarity(subject, c.title))
+        scored.append((round(s, 3), c))
+    return sorted(scored, key=lambda t: t[0], reverse=True)
+
+
+def fetch_and_frame(cand: ArchivalCandidate, out_path: str, width: int = 1080,
+                    height: int = 1920) -> str:
+    """Download the full image and letterbox it into a 9:16 frame over a blurred, darkened
+    copy of itself (never crop a diagram - cropping destroys the informative content)."""
+    import io
+    import pathlib
+
+    from PIL import Image, ImageEnhance, ImageFilter
+
+    try:
+        img = Image.open(io.BytesIO(_get_bytes(cand.image_url))).convert("RGB")
+    except Exception:  # noqa: BLE001 - e.g. SVG originals; the thumb is a rendered PNG
+        img = Image.open(io.BytesIO(_get_bytes(cand.thumb_url))).convert("RGB")
+
+    # Background: cover-scaled, blurred, darkened.
+    scale = max(width / img.width, height / img.height)
+    bg = img.resize((int(img.width * scale) + 1, int(img.height * scale) + 1))
+    bg = bg.crop(((bg.width - width) // 2, (bg.height - height) // 2,
+                  (bg.width - width) // 2 + width, (bg.height - height) // 2 + height))
+    bg = ImageEnhance.Brightness(bg.filter(ImageFilter.GaussianBlur(40))).enhance(0.35)
+
+    # Foreground: fit within safe box, centered.
+    box_w, box_h = int(width * 0.94), int(height * 0.72)
+    fit = min(box_w / img.width, box_h / img.height)
+    fg = img.resize((max(1, int(img.width * fit)), max(1, int(img.height * fit))))
+    bg.paste(fg, ((width - fg.width) // 2, (height - fg.height) // 2))
+
+    out = pathlib.Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    bg.save(str(out))
+    return str(out)
+
+
 def find_archival(subject: str, limit_per_source: int = 6, min_long_side: int = 800) -> list[ArchivalCandidate]:
     """Federated search, license-filtered, small/dead images dropped. Returns candidates
     (unscored; CLIP relevance ranking is the next slice - callers take the top N for now)."""

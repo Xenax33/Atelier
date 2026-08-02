@@ -14,6 +14,7 @@ class Beat(TypedDict):
     narration: str      # 1-2 spoken sentences for this beat
     caption: str        # short on-screen caption text (not the narration transcript)
     visual_prompt: str  # SDXL prompt for this beat's still, house style applied downstream
+    archival_subject: str  # archive search term if a real image beats an illustration, else ""
 
 
 class ShortSpec(TypedDict):
@@ -41,6 +42,7 @@ class ShortState(TypedDict, total=False):
     audio_path: str
     audio_seconds: float
     image_paths: list[str]      # one still per beat, ordered
+    archival_used: list[dict]   # provenance of archival images composited into this run
     words_path: str             # word-timestamps json from faster-whisper
     master_path: str
     proxy_path: str

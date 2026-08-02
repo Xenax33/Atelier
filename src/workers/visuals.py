@@ -198,10 +198,13 @@ def _render_one(visual_prompt: str, seed: int, out_file: pathlib.Path) -> None:
 
 
 def render_beat_stills(prompts: list[str], run_assets_dir: str | pathlib.Path,
-                       repo_root: str | pathlib.Path, base_seed: int = 1000) -> list[str]:
-    """Render one still per beat prompt with full GPU choreography. Returns file paths."""
+                       repo_root: str | pathlib.Path, base_seed: int = 1000,
+                       indices: list[int] | None = None) -> list[str]:
+    """Render one still per beat prompt with full GPU choreography. Returns file paths.
+    indices: beat numbers used for filenames (so archival beats can interleave)."""
     assets = pathlib.Path(run_assets_dir)
     root = pathlib.Path(repo_root)
+    idx = indices if indices is not None else list(range(len(prompts)))
     stop_llama()
     time.sleep(3)
     if not start_comfy():
@@ -209,7 +212,7 @@ def render_beat_stills(prompts: list[str], run_assets_dir: str | pathlib.Path,
         raise RuntimeError("ComfyUI failed to start (see docs/SETUP-COMFYUI.md)")
     try:
         paths = []
-        for i, prompt in enumerate(prompts):
+        for i, prompt in zip(idx, prompts, strict=True):
             out = assets / f"beat_{i:02d}.png"
             _render_one(prompt, base_seed + i, out)
             paths.append(str(out))

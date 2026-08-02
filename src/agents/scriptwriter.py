@@ -28,8 +28,9 @@ SPEC_SCHEMA = {
                     "narration": {"type": "string"},
                     "caption": {"type": "string"},
                     "visual_prompt": {"type": "string"},
+                    "archival_subject": {"type": "string"},
                 },
-                "required": ["narration", "caption", "visual_prompt"],
+                "required": ["narration", "caption", "visual_prompt", "archival_subject"],
                 "additionalProperties": False,
             },
         },
@@ -53,6 +54,10 @@ Hard rules:
 - visual_prompt per beat: a concrete SDXL scene description of WHAT IS SHOWN (subject, setting, era,
   composition). Do NOT include style words (flat vector, palette etc.) - style is applied downstream.
   Never name real brands or channels. Vertical-friendly single-subject compositions.
+- archival_subject per beat: if a REAL archival image would teach this beat better than an
+  illustration (a specific apparatus, an anatomical plate, an astronomy photo, a historical
+  document), give a 2-4 word archive search term (e.g. "Leyden jar", "Voyager golden record").
+  Otherwise EMPTY STRING. Use sparingly - most beats should stay illustrated.
 - Only include facts you are confident are true and mainstream-documented. No invented quotes, no
   precise statistics unless certain. (A fact-checker will audit; wrong facts kill the channel.)
 - title: <=90 chars, specific, no clickbait. description: 2-3 sentences. hashtags: no # symbol.
