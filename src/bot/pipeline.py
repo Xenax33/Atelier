@@ -94,11 +94,14 @@ class PipelineRunner:
                 proxy = pathlib.Path(payload["proxy_path"])
                 if proxy.exists() and proxy.stat().st_size < MAX_ATTACH_MB * 1024 * 1024:
                     files = [discord.File(str(proxy))]
-                await ch.send(
-                    content=(f"**Gate 3 - final review** `{rid}`\nmaster: `{payload['master_path']}`"),
-                    files=files,
-                    view=gate_view(rid, "final"),
-                )
+                content = f"**Gate 3 - final review** `{rid}`\nmaster: `{payload['master_path']}`"
+                used = payload.get("archival_used", [])
+                if used:
+                    lines = "\n".join(
+                        f"- beat {u['beat'] + 1}: [{u['title'][:60]}](<{u['source_url']}>) ({u['license_id']})"
+                        for u in used)
+                    content += f"\n**Archival images in this video** (check they fit):\n{lines}"
+                await ch.send(content=content, files=files, view=gate_view(rid, "final"))
             return
         # No interrupt: the run ended.
         if result.get("error"):
@@ -139,6 +142,13 @@ class PipelineRunner:
                 value=(f"Hook: {c['hook']}\n*Editor: {crit}*")[:1024],
                 inline=False,
             )
+        plan = payload.get("archival_plan", [])
+        if plan:
+            lines = "\n".join(
+                (f"beat {p['beat'] + 1}: '{p['subject']}' - {p['candidates']} archive hits"
+                 + (f", top: [{p['top_title'][:50]}](<{p['top_url']}>)" if p.get("top_url") else " (will use SDXL)"))
+                for p in plan)
+            e.add_field(name="📷 Archival image plan", value=lines[:1024], inline=False)
         claims = payload.get("claims", [])
         flagged = [c for c in claims if c.get("verdict") != "supported"]
         if claims:

@@ -136,6 +136,30 @@ def wikipedia_extract(title: str, sentences: int = 8) -> str:
         return ""
 
 
+def paper_search(query: str, limit: int = 4) -> list[dict]:
+    """Academic papers via paper-search-mcp's clients (MIT): arXiv + EuropePMC. More
+    reliable than anonymous Semantic Scholar (which 429s). Same shape as the S2 tool.
+    NOTE: the package also ships a sci_hub client - never use it (ADR-0006 spirit)."""
+    out: list[dict] = []
+    try:
+        from paper_search_mcp.academic_platforms.arxiv import ArxivSearcher
+        from paper_search_mcp.academic_platforms.europepmc import EuropePMCSearcher
+
+        for searcher in (ArxivSearcher(), EuropePMCSearcher()):
+            try:
+                for p in searcher.search(query, max_results=limit):
+                    out.append({
+                        "title": p.title, "year": str(getattr(p, "published_date", ""))[:4],
+                        "abstract": (p.abstract or "")[:400], "doi": p.doi or "",
+                        "url": (f"https://doi.org/{p.doi}" if p.doi else getattr(p, "url", "")),
+                    })
+            except Exception:  # noqa: BLE001 - one source failing must not kill the other
+                continue
+    except ImportError:
+        pass
+    return out[: limit * 2]
+
+
 def searxng_search(query: str, limit: int = 8, engines: str = "") -> list[dict]:
     """General web via the local SearXNG instance. Returns [] gracefully when it is not up.
 

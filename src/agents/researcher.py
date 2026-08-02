@@ -124,9 +124,12 @@ def gather_evidence(topic: str, max_items: int = 10) -> list[dict]:
         for x in searxng_search(query, limit=3):
             if x.get("content"):
                 evidence.append({"source": "web", "title": x["title"], "text": x["content"], "url": x.get("url", "")})
-    for p in semantic_scholar_search(subject, limit=3):
+    from ..tools.research import paper_search
+
+    papers = paper_search(subject, limit=2) or semantic_scholar_search(subject, limit=3)
+    for p in papers:
         if p.get("abstract"):
-            url = f"https://doi.org/{p['doi']}" if p.get("doi") else ""
+            url = p.get("url") or (f"https://doi.org/{p['doi']}" if p.get("doi") else "")
             evidence.append({"source": "paper", "title": p["title"] or "", "text": p["abstract"],
                              "url": url, "doi": p.get("doi") or ""})
     return evidence[:max_items]

@@ -16,11 +16,16 @@ param(
     [switch]$WithComfy,     # ALSO boot ComfyUI-Zluda. Default off: the 8GB card cannot hold the
                             # brain AND SDXL at once (HARDWARE.md); the render worker starts/stops
                             # ComfyUI around visual stages instead.
+    [switch]$IfOn,          # watchdog mode: only proceed if the studio marker exists (set by a
+                            # normal start, cleared by stop-day.ps1). The AtelierWatchdog scheduled
+                            # task calls this every 5 min so crashed services self-resurrect.
     [int]$TimeoutSec = 120
 )
 
 $ErrorActionPreference = 'Stop'
 $Root = $PSScriptRoot
+$Marker = Join-Path $Root "state\.studio-on"
+if ($IfOn -and -not (Test-Path $Marker)) { exit 0 }
 
 function Wait-Endpoint {
     param([string]$Url, [int]$TimeoutSec = 120)
@@ -107,6 +112,7 @@ if ($envReady) {
     Write-Host "[atelier] .env missing or DISCORD_BOT_TOKEN unset: app not launched (see .env.example)." -ForegroundColor Yellow
 }
 
-# 4) Ping Discord "stack ready"
-# TODO(TASK-006): post to DISCORD_CONTROL_CHANNEL_ID via webhook once services are green.
-Write-Host "[atelier] boot sequence complete (skeleton)." -ForegroundColor Green
+# 4) Mark the studio ON (the watchdog keeps it alive until stop-day.ps1 clears this).
+New-Item -ItemType Directory -Path (Split-Path $Marker) -Force | Out-Null
+Set-Content -Path $Marker -Value (Get-Date -Format o) -Encoding ascii
+Write-Host "[atelier] boot sequence complete; watchdog armed." -ForegroundColor Green

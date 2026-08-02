@@ -53,3 +53,4 @@ pydantic-settings>=2.3
 python-dotenv>=1.0
 ruff>=0.5
 pytest>=8.2
+paper-search-mcp>=0.1.4  # MIT; arXiv+EuropePMC evidence clients (never use its sci_hub module)

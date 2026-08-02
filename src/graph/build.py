@@ -108,7 +108,26 @@ def factcheck(state: ShortState) -> dict:
             c["verdict"] = "uncertain"
     run = _run_dir(state)
     (run / "claims.json").write_text(json.dumps(claims, indent=1), encoding="utf-8")
-    return {"claims": claims}
+
+    # Archival plan preview for Gate 1 (search only, no CLIP/downloads - keeps the gate fast):
+    # which beats want real images and what the archives hold for them.
+    plan: list[dict] = []
+    try:
+        from ..tools.archival import find_archival
+
+        for i, b in enumerate(state["spec"]["beats"]):
+            subject = (b.get("archival_subject") or "").strip()
+            if not subject:
+                continue
+            cands = find_archival(subject)
+            plan.append({
+                "beat": i, "subject": subject, "candidates": len(cands),
+                "top_title": cands[0].title if cands else "",
+                "top_url": cands[0].source_url if cands else "",
+            })
+    except Exception:  # noqa: BLE001 - preview is informational only
+        pass
+    return {"claims": claims, "archival_plan": plan}
 
 
 def gate_script(state: ShortState) -> Command[Literal["draft", "factcheck", "tts", "abort"]]:
@@ -117,6 +136,7 @@ def gate_script(state: ShortState) -> Command[Literal["draft", "factcheck", "tts
                           "critiques": state.get("critiques", []),
                           "audited_index": state.get("audited_index", 0),
                           "claims": state.get("claims", []),
+                          "archival_plan": state.get("archival_plan", []),
                           "attempt": state.get("script_attempts", 1)})
     action = decision.get("action")
     if action == "approve":  # approve = accept the audited/recommended candidate
@@ -171,7 +191,18 @@ def visuals(state: ShortState) -> dict:
 
     run = _run_dir(state)
     assets = run / "assets"
-    beats = state["spec"]["beats"]
+    beats = [dict(b) for b in state["spec"]["beats"]]
+    # Visual Director pass: translate narration into depictable scenes (concept -> physical
+    # metaphor, never text/numbers). Fixes the "random shapes" failure. Fallback: writer prompts.
+    try:
+        from ..agents.visdir import direct_visuals
+
+        directed = direct_visuals(beats, state.get("topic", ""))
+        for b, p in zip(beats, directed, strict=True):
+            if p.strip():
+                b["visual_prompt"] = p.strip()
+    except Exception:  # noqa: BLE001
+        pass
     paths: list[str | None] = [None] * len(beats)
     used: list[dict] = []
     for i, b in enumerate(beats):
@@ -217,7 +248,8 @@ def assemble_node(state: ShortState) -> dict:
 
 def gate_final(state: ShortState) -> Command[Literal["deliver", "abort"]]:
     decision = interrupt({"stage": "final", "master_path": state["master_path"],
-                          "proxy_path": state["proxy_path"]})
+                          "proxy_path": state["proxy_path"],
+                          "archival_used": state.get("archival_used", [])})
     if decision.get("action") == "approve":
         return Command(goto="deliver")
     return Command(goto="abort", update={"error": "rejected at final gate"})

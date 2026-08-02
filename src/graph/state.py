@@ -43,6 +43,7 @@ class ShortState(TypedDict, total=False):
     audio_seconds: float
     image_paths: list[str]      # one still per beat, ordered
     archival_used: list[dict]   # provenance of archival images composited into this run
+    archival_plan: list[dict]   # per flagged beat: subject + candidate count + top hit (gate preview)
     words_path: str             # word-timestamps json from faster-whisper
     master_path: str
     proxy_path: str

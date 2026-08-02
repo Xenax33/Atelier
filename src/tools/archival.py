@@ -233,13 +233,72 @@ def fetch_and_frame(cand: ArchivalCandidate, out_path: str, width: int = 1080,
     return str(out)
 
 
+def nasa_search(subject: str, limit: int = 5) -> list[ArchivalCandidate]:
+    """NASA Image Library: US-gov works, generally PD. No key. We skip items whose
+    metadata mentions copyright (third-party material trap)."""
+    try:
+        r = _get("https://images-api.nasa.gov/search", {"q": subject, "media_type": "image", "page_size": limit})
+        r.raise_for_status()
+        items = r.json().get("collection", {}).get("items", [])
+    except (httpx.HTTPError, ValueError):
+        return []
+    out = []
+    for it in items[:limit]:
+        data = (it.get("data") or [{}])[0]
+        desc = (data.get("description") or "") + (data.get("secondary_creator") or "")
+        if "copyright" in desc.lower():
+            continue
+        links = it.get("links") or []
+        thumb = next((x.get("href", "") for x in links if x.get("rel") == "preview"), "")
+        nasa_id = data.get("nasa_id", "")
+        out.append(ArchivalCandidate(
+            image_url=thumb.replace("~thumb", "~large") if thumb else "",
+            thumb_url=thumb, title=data.get("title") or nasa_id, creator="NASA",
+            license_id="Public domain (NASA)", license_url="https://www.nasa.gov/nasa-brand-center/images-and-media/",
+            source_url=f"https://images.nasa.gov/details/{nasa_id}", source_name="NASA Image Library",
+            width=0, height=0,
+        ))
+    return out
+
+
+def wellcome_search(subject: str, limit: int = 5) -> list[ArchivalCandidate]:
+    """Wellcome Collection: history of medicine/science. IIIF serves exact pixel sizes.
+    License is explicit per image; we accept cc0/pdm/cc-by only."""
+    try:
+        r = _get("https://api.wellcomecollection.org/catalogue/v2/images",
+                 {"query": subject, "pageSize": limit})
+        r.raise_for_status()
+        results = r.json().get("results", [])
+    except (httpx.HTTPError, ValueError):
+        return []
+    out = []
+    for x in results[:limit]:
+        loc = x.get("locations", [{}])[0]
+        lic = (loc.get("license") or {}).get("id", "").lower()
+        if lic not in ("cc0", "pdm", "cc-by"):
+            continue
+        iiif = loc.get("url", "")  # info.json URL
+        base = iiif.removesuffix("/info.json")
+        src = x.get("source", {})
+        out.append(ArchivalCandidate(
+            image_url=f"{base}/full/1600,/0/default.jpg" if base else "",
+            thumb_url=f"{base}/full/640,/0/default.jpg" if base else "",
+            title=src.get("title") or "untitled", creator="Wellcome Collection",
+            license_id=lic.upper(), license_url=(loc.get("license") or {}).get("url", ""),
+            source_url=f"https://wellcomecollection.org/works/{src.get('id', '')}",
+            source_name="Wellcome Collection", width=0, height=0,
+        ))
+    return out
+
+
 def find_archival(subject: str, limit_per_source: int = 6, min_long_side: int = 800) -> list[ArchivalCandidate]:
     """Federated search, license-filtered, small/dead images dropped. Returns candidates
     (unscored; CLIP relevance ranking is the next slice - callers take the top N for now)."""
     _ = get_settings()  # reserved for future per-source keys
     seen: set[str] = set()
     out: list[ArchivalCandidate] = []
-    for cand in commons_search(subject, limit_per_source) + openverse_search(subject, limit_per_source):
+    for cand in (commons_search(subject, limit_per_source) + openverse_search(subject, limit_per_source)
+                 + nasa_search(subject, limit_per_source) + wellcome_search(subject, limit_per_source)):
         if not cand.image_url or cand.image_url in seen:
             continue
         seen.add(cand.image_url)

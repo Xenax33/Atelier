@@ -11,6 +11,10 @@
 #>
 $ErrorActionPreference = 'SilentlyContinue'
 
+# Disarm the watchdog FIRST so it cannot resurrect what we are about to stop.
+Remove-Item (Join-Path $PSScriptRoot "state\.studio-on") -Force
+Write-Host "[atelier] watchdog disarmed" -ForegroundColor Yellow
+
 Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" |
     Where-Object { $_.CommandLine -match "src\.main" } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
