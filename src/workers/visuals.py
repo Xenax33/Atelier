@@ -43,8 +43,12 @@ PER_IMAGE_TIMEOUT_S = 4500
 SAMPLER_NAME = "dpmpp_2m"
 SCHEDULER = "karras"
 STEPS = 32
-CFG = 7.0            # R&D: 7-7.5 improves adherence; 9+ fries flat colors
 LORA_STRENGTH = 0.65  # R&D: 0.8 let style dominate content; flat-vector survives 0.65 easily
+# PAG (Perturbed-Attention Guidance): structural-coherence fix, custom node
+# sd-perturbed-attention in the ComfyUI-Zluda install. Paper values: CFG 4 + PAG 3.
+USE_PAG = True
+PAG_SCALE = 3.0
+CFG = 4.0 if USE_PAG else 7.0
 
 
 def _up(url: str, timeout: float = 3.0) -> bool:
@@ -123,8 +127,11 @@ def _workflow(visual_prompt: str, seed: int) -> dict:
                    "inputs": {"width": 768, "height": 1344, "batch_size": 1}},
         # Quality settings per TASK-011 (user accepted longer renders): dpmpp_2m+karras at
         # 32 steps renders noticeably cleaner shapes/edges than euler/20 on SDXL base.
+        **({"pag": {"class_type": "PerturbedAttentionGuidance",
+                    "inputs": {"model": ["lora", 0], "scale": PAG_SCALE}}} if USE_PAG else {}),
         "sampler": {"class_type": "KSampler", "inputs": {
-            "model": ["lora", 0], "positive": ["pos", 0], "negative": ["neg", 0],
+            "model": ["pag", 0] if USE_PAG else ["lora", 0],
+            "positive": ["pos", 0], "negative": ["neg", 0],
             "latent_image": ["latent", 0], "seed": seed, "steps": STEPS, "cfg": CFG,
             "sampler_name": SAMPLER_NAME, "scheduler": SCHEDULER, "denoise": 1.0}},
         # RDNA1 fix: VAE decode dies with "GET was unable to find an engine" when cudnn is
