@@ -62,7 +62,7 @@ def chat_json(
     }
     url = s.model_gateway_base_url.rstrip("/") + "/chat/completions"
     last_err = ""
-    for attempt in range(3):
+    for _attempt in range(3):
         try:
             r = httpx.post(url, json=body, timeout=_TIMEOUT)
         except httpx.ConnectError:

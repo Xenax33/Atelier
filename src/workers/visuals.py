@@ -34,7 +34,11 @@ NEGATIVE = (
     "deformed, cluttered, messy lines, extra limbs, extra fingers, distorted face, low contrast"
 )
 
-PER_IMAGE_TIMEOUT_S = 1500  # warm ~3 min; first render of a session may recompile some kernels
+# Warm renders are ~3-4 min, BUT a wiped MIOpen/ZLUDA cache forces a full kernel re-tune that
+# can legitimately take 30-60 min (seen live 2026-08-02: ~/.miopen deleted, timeout killed a
+# healthy compile). So: a big hard cap, plus liveness checks instead of impatience - we only
+# give up early if the server dies or our job vanishes from the queue.
+PER_IMAGE_TIMEOUT_S = 4500
 
 # Sampler settings as module constants so tests can bisect crashes by overriding them.
 SAMPLER_NAME = "dpmpp_2m"
@@ -141,6 +145,7 @@ def _render_one(visual_prompt: str, seed: int, out_file: pathlib.Path) -> None:
     pid = r.json()["prompt_id"]
     deadline = time.time() + PER_IMAGE_TIMEOUT_S
     conn_failures = 0
+    missing_from_queue = 0
     while time.time() < deadline:
         time.sleep(10)
         try:
@@ -156,6 +161,18 @@ def _render_one(visual_prompt: str, seed: int, out_file: pathlib.Path) -> None:
             continue
         entry = h.get(pid)
         if not entry:
+            # Not finished yet: verify the job still EXISTS (running or pending). A long wait
+            # with the job in-queue is a kernel compile, not a hang - keep waiting.
+            try:
+                q = httpx.get(f"{COMFY_BASE}/queue", timeout=15).json()
+                ids = [item[1] for item in q.get("queue_running", []) + q.get("queue_pending", [])]
+                missing_from_queue = 0 if pid in ids else missing_from_queue + 1
+                if missing_from_queue >= 3:
+                    raise RuntimeError("render job vanished from the ComfyUI queue without a result")
+            except httpx.HTTPError:
+                pass
+            continue
+        if not entry:
             continue
         status = entry.get("status", {})
         if status.get("status_str") == "error":
@@ -169,7 +186,15 @@ def _render_one(visual_prompt: str, seed: int, out_file: pathlib.Path) -> None:
             out_file.parent.mkdir(parents=True, exist_ok=True)
             out_file.write_bytes(data)
             return
-    raise TimeoutError(f"image render exceeded {PER_IMAGE_TIMEOUT_S}s")
+    # Hard cap reached: cancel the stuck job so teardown does not leave orphan queue work.
+    try:
+        httpx.post(f"{COMFY_BASE}/interrupt", timeout=10)
+    except httpx.HTTPError:
+        pass
+    raise TimeoutError(
+        f"image render exceeded {PER_IMAGE_TIMEOUT_S}s hard cap (job was interrupted). "
+        "If kernel caches were wiped, the first render re-tunes for 30-60 min - see RUNBOOK."
+    )
 
 
 def render_beat_stills(prompts: list[str], run_assets_dir: str | pathlib.Path,

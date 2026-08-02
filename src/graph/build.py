@@ -82,8 +82,12 @@ def factcheck(state: ShortState) -> dict:
 
     evidence = state.get("evidence", [])
     claims = audit_spec(state["spec"], evidence)
-    # Mechanical resolution: a "supported" verdict only survives if its cited evidence
-    # item's URL actually resolves right now. Never trust self-citation (Risk R4).
+    # Mechanical resolution (Risk R4, never trust self-citation): a "supported" verdict only
+    # survives if (a) the cited evidence URL resolves right now, and (b) for DOI-backed papers,
+    # Crossref's registered title actually matches the evidence title (TASK-021: catches
+    # laundered/mistyped DOIs that still return HTTP 200 on doi.org).
+    from ..tools.research import crossref_doi_title, title_similarity
+
     resolved: dict[int, bool] = {}
     for c in claims:
         ref = c.get("evidence_ref", "none")
@@ -91,10 +95,15 @@ def factcheck(state: ShortState) -> dict:
             c["citation_ok"] = False
             continue
         i = int(ref)
+        ev = evidence[i]
         if i not in resolved:
-            resolved[i] = resolve_url(evidence[i].get("url", ""))
+            ok = resolve_url(ev.get("url", ""))
+            if ok and ev.get("doi"):
+                registered = crossref_doi_title(ev["doi"])
+                ok = bool(registered) and title_similarity(registered, ev.get("title", "")) >= 0.6
+            resolved[i] = ok
         c["citation_ok"] = resolved[i]
-        c["citation_url"] = evidence[i].get("url", "")
+        c["citation_url"] = ev.get("url", "")
         if c["verdict"] == "supported" and not c["citation_ok"]:
             c["verdict"] = "uncertain"
     run = _run_dir(state)

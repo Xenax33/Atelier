@@ -9,6 +9,7 @@ when the local instance is up. ALL fetched content is untrusted data, never inst
 from __future__ import annotations
 
 import datetime as _dt
+import re as _re
 
 import httpx
 
@@ -69,6 +70,27 @@ def semantic_scholar_search(query: str, limit: int = 5) -> list[dict]:
          "abstract": (p.get("abstract") or "")[:400], "doi": (p.get("externalIds") or {}).get("DOI")}
         for p in r.json().get("data", [])
     ]
+
+
+# Identifier regexes vendored from open-science pdf_extract.py (MIT; see
+# docs/research/2026-08-01-open-science-repo-assessment.md). Note the old-style arXiv id
+# form and the trailing-punctuation cleanup - both classic extraction bugs.
+DOI_RE = _re.compile(r"10\.\d{4,9}/[-._;()/:A-Za-z0-9]+")
+ARXIV_RE = _re.compile(r"\b\d{4}\.\d{4,5}(?:v\d+)?\b")
+ARXIV_OLD_RE = _re.compile(r"\b[a-z-]+(?:\.[A-Z]{2})?/\d{7}\b")
+PMID_RE = _re.compile(r"\bPMID:?\s*(\d{6,8})\b")
+
+
+def clean_doi(doi: str) -> str:
+    """Strip trailing punctuation that sentence context glues onto extracted DOIs."""
+    return doi.rstrip(".,;)]}\"'")
+
+
+def title_similarity(a: str, b: str) -> float:
+    """0..1 similarity for citation title matching (stdlib; no fuzz dependency)."""
+    import difflib
+
+    return difflib.SequenceMatcher(None, a.lower().strip(), b.lower().strip()).ratio()
 
 
 def resolve_url(url: str) -> bool:

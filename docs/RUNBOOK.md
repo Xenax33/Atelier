@@ -7,6 +7,7 @@ Operational playbook. Fill in the TODOs as Phase 0 stands each service up.
 ```powershell
 ./start-day.ps1              # brain + SearXNG + bot (ComfyUI starts per-render automatically)
 ./start-day.ps1 -WithComfy   # also pre-boot ComfyUI (VRAM rule: brain and SDXL cannot co-reside)
+./stop-day.ps1               # full shutdown: frees ~5-6GB VRAM + several GB RAM (closing windows does NOT)
 ```
 
 Expected green state:
@@ -31,6 +32,7 @@ Expected green state:
 | llama-server dies instantly: "error: invalid argument: Projects\..." | Repo path contains a space ("Side Projects") and PS 5.1 `Start-Process -ArgumentList` does not quote args | Embed quotes around every path argument: `"-m", "``"$Root\models\file.gguf``""`. Already fixed in start-day.ps1; copy that pattern. |
 | pip: NameResolutionError / ResolutionImpossible listing every version of a package | Transient DNS failure mid-install (often while big downloads saturate the link), not a real conflict | Re-run in staged groups with `--retries 10 --timeout 60`; check `Resolve-DnsName files.pythonhosted.org` first |
 | ComfyUI error at VAEDecode: "GET was unable to find an engine to execute this computation" | cudnn engine selection fails on RDNA1/ZLUDA (documented fork issue) | Route the latent through `CUDNNToggleAutoPassthrough` (enable_cudnn=false) before VAEDecode - already wired in src/workers/visuals.py; keep it when editing the workflow |
+| First render of a session takes 30-60 min (log shows minutes between model loads, no errors) | MIOpen/ZLUDA kernel caches were wiped (%USERPROFILE%\.miopen, %LOCALAPPDATA%\ZLUDA\ComputeCache) - Windows cleanup tools do this | It is a healthy re-tune, NOT a hang: let it run (render waiter is liveness-aware with a 75-min cap). Exclude those two cache dirs from cleanup tools |
 | ComfyUI process dies silently mid-render (log just stops, no traceback) | ZLUDA/driver hard-crash class; often the same cudnn/VAE issue escalating | Check user/comfyui.log for the last op; ensure the cudnn-off node is present; if persistent, drop sampler to euler and re-test |
 | Torch/ROCm build errors, silent CPU fallback | Someone tried ROCm/vLLM on gfx1010 | Don't. Vulkan/ZLUDA only. (ADR-0001) |
 | OOM during image gen | Two heavy GPU stages co-resident | Serialize; unload before SDXL. (HARDWARE.md) |
