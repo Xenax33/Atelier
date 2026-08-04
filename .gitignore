@@ -35,8 +35,14 @@ state/runs/*/
 *.jpg
 *.jpeg
 *.webp
-assets/
 render/
+# repo-level assets: ship the OFL caption font + the music folder readme; music
+# tracks themselves stay local (fetch per assets/music/README.md)
+assets/*
+!assets/fonts
+assets/music/*
+!assets/music
+!assets/music/README.md
 
 # --- models (never commit weights) ---
 models/

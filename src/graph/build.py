@@ -159,11 +159,14 @@ def gate_script(state: ShortState) -> Command[Literal["draft", "factcheck", "tts
 
 
 def tts_node(state: ShortState) -> dict:
-    from ..workers.tts import render_narration
+    """Per-segment synthesis (hook / beats / outro) with explicit gaps: exact beat
+    timestamps land in assets/beat_timing.json for assemble's beat-synced cuts, and
+    the wav ships through the ffmpeg voice chain (R&D 2026-08-03, 5.2/5.3)."""
+    from ..workers.tts import render_narration_segments, spec_segments
 
     run = _run_dir(state)
     audio = run / "assets" / "narration.wav"
-    seconds = render_narration(state["narration_text"], audio)
+    seconds, _timing = render_narration_segments(spec_segments(state["spec"]), audio)
     return {"audio_path": str(audio), "audio_seconds": seconds}
 
 
@@ -246,6 +249,7 @@ def assemble_node(state: ShortState) -> dict:
     master, proxy = assemble(
         state["spec"], state["audio_path"], state["image_paths"], state["words_path"],
         str(run / "render" / "master.mp4"), str(run / "render" / "proxy.mp4"),
+        music_dir=str(REPO_ROOT / "assets" / "music"), music_seed=state["run_id"],
     )
     return {"master_path": master, "proxy_path": proxy}
 

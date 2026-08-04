@@ -2,6 +2,21 @@
 
 Notable changes, newest first. Keep entries short; link tasks (`TASK-###`) and ADRs where relevant.
 
+## 2026-08-03 - R&D sweep verified + weekend batch: sync, karaoke captions, sound (TASK-030)
+- **Pipeline R&D sweep verified** (docs/research/2026-08-03-pipeline-rnd.md + its section 9 addendum):
+  license claims re-checked at primary sources; three corrections (Orpheus ban stands on Meta's terms,
+  Qwen3.5 thinking is ON by default - gate any swap on the schema smoke test, AYS is ~20-step quality).
+- **Beat-synced cuts**: TTS now synthesizes per segment (hook/beats/outro) with explicit gaps and writes
+  `beat_timing.json`; assembly cuts on real narration boundaries instead of word-count proportions.
+- **Karaoke captions**: ASS/libass with per-word `\kf` sweep, burned by ffmpeg with the in-repo OFL
+  Archivo Black font (assets/fonts/). Replaces MoviePy TextClips (and the old clipping workaround);
+  Shorts-safe margins (block above y=1540, right rail cleared).
+- **Sound**: voice chain (highpass/de-ess/compress, -16 LUFS) on every narration; optional music bed
+  from assets/music/ (YouTube Audio Library / MacLeod - see its README) sidechain-ducked under the
+  voice; final mix two-pass loudnorm to -14 LUFS (verified -14.2 on the test master).
+- Kokoro fixes: model singleton (was reloading the ONNX per call), absolute paths, speed knob (1.05).
+- ADR-0009 amended (Orpheus rejected-on-license; NeuTTS Air is the signature-voice upgrade path).
+
 ## 2026-07-26 - Ideation, search, credibility (TASK-009/010/011/012/013/014)
 - **/ideas**: researcher proposes pitched topics (today-in-history + Wikipedia + SearXNG), persistent
   pick-buttons start the pipeline. User-accepted ("significantly better").

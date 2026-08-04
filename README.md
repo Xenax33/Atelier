@@ -35,7 +35,7 @@ voiceover, flat-vector visuals, and animated diagrams into a finished 9:16 video
 | TTS | **Kokoro-82M** (CPU) |
 | Images | **SDXL** + vector-style LoRA via **ComfyUI-Zluda** |
 | Motion | Ken-Burns over stills (Depth-Anything parallax + **Manim** diagrams planned) |
-| Captions / assembly | faster-whisper + ffmpeg/MoviePy |
+| Captions / assembly | faster-whisper + libass karaoke captions + ffmpeg/MoviePy |
 | Memory | sqlite-vec (topic dedup, live), later pgvector |
 | Publishing | manual upload by the owner (metadata auto-drafted; API publishing deferred) |
 
