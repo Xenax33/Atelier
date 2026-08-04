@@ -16,6 +16,27 @@ Expected green state:
 - Discord `#control` shows the boot card; `/status` reports the stack.
 - ComfyUI (`:8188`) is only up during renders or with `-WithComfy` - by design (VRAM rule).
 
+## The watchdog (auto-start / self-heal)
+
+`AtelierWatchdog` (Task Scheduler) fires every 5 minutes and runs
+`scripts\watchdog-quiet.vbs` -> `start-day.ps1 -IfOn`. The `-IfOn` guard means it only acts
+while `state\.studio-on` exists (written by start-day, cleared ONLY by stop-day). Consequences:
+
+- A crash, reboot, or POWER CUT while the studio is armed self-heals within 5 minutes of the
+  next boot - llama, SearXNG, and the bot all come back on their own. This is by design.
+- It does NOT auto-resume an interrupted pipeline run - use Discord `/resume run_id:<id>`.
+- Before GAMING: run `stop-day.ps1`. It disarms the marker and frees the ~5-6 GB VRAM the
+  brain holds; otherwise the watchdog will fight you for the GPU.
+- The task action MUST stay `wscript.exe "...\scripts\watchdog-quiet.vbs"` - invoking
+  powershell.exe directly (even with `-WindowStyle Hidden`) flashes a console window at every
+  firing, in the middle of whatever the user is doing (found 2026-08-04 after two days of
+  mystery cmd popups during games). wscript has no console at all. Re-register with:
+
+```powershell
+$a = New-ScheduledTaskAction -Execute "wscript.exe" -Argument '"F:\Side Projects\atelier\scripts\watchdog-quiet.vbs"'
+Set-ScheduledTask -TaskName "AtelierWatchdog" -Action $a
+```
+
 ## Recover from a crash
 
 - **A GPU server died** -> nssm should restart it; otherwise re-run `start-day.ps1`. Verify VRAM freed

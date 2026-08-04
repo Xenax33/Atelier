@@ -31,3 +31,6 @@ _Last updated: 2026-08-02 (consolidated)._
 - 2026-07-29 | pick-idea | chose 'The Collatz Conjecture (1950s–present)' from batch 20260729-2948fe
 - 2026-07-29 | regen-feedback | 20260729-a8fea8: I like the first one you mentioned but since the video needs to be for 60 seconds then it should explain the whole problem such that a 5 year old can understand it. and remember this that these videos are not for technical people or adults. i mean they are but they should be like so
 - 2026-07-29 | pick-script | 20260729-a8fea8: chose candidate #2 at script gate
+- 2026-08-04 | pick-idea | chose 'Michelson-Morley Experiment (1887)' from batch 20260804-f59939
+- 2026-08-04 | regen-feedback | 20260804-baceee: We need to go into a bit detail about the topic with a clear ending and mention the year like scientists until 1980 or whatever is the correct answer and we need to make sure that the script is for 60 seconds video. no more no less
+- 2026-08-04 | approve | 20260804-baceee: accepted the editor-recommended script
