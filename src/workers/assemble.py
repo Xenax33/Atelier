@@ -21,6 +21,14 @@ FONTS_DIR = pathlib.Path(__file__).resolve().parents[2] / "assets" / "fonts"
 CAPTION_FONT = "Archivo Black"  # SIL OFL 1.1, shipped in assets/fonts/
 PROXY_LIMIT_MB = 9.0  # Discord cap is 10; leave headroom
 CUT_LEAD_S = 0.12  # cut this far into the inter-beat gap (just after the last word)
+# Cut-ins (R&D 7.1): segments at least this long get a second shot - a crop-reframe of
+# the SAME approved still - halving the visual-change interval for free. Archival
+# letterboxed frames are excluded (cropping a letterboxed diagram destroys it).
+# Set CUTIN_MIN_S very high to disable.
+CUTIN_MIN_S = 6.0
+CUTIN_SCALE = 0.62   # crop covers 62% of the source frame
+CUTIN_Y_BIAS = 0.4   # crop center sits at 40% height (subjects live upper-center in 9:16)
+CUTIN_SPLIT = 0.55   # wide shot runs 55% of the segment, cut-in the rest
 
 
 def _ffmpeg() -> str:
@@ -82,10 +90,13 @@ def _caption_chunks(words: list[dict], target_s: float = 1.9, max_words: int = 7
 
 
 def _ass_time(s: float) -> str:
-    s = max(s, 0.0)
-    h, rem = divmod(s, 3600)
-    m, sec = divmod(rem, 60)
-    return f"{int(h)}:{int(m):02d}:{sec:05.2f}"
+    """ASS H:MM:SS.cc timestamp. Integer centisecond math: float formatting could round
+    59.998s to the malformed "59.100"-style "0:00:60.00" (review 2026-08-06)."""
+    cs = max(int(round(s * 100)), 0)
+    h, rem = divmod(cs, 360_000)
+    m, rem = divmod(rem, 6_000)
+    sec, cs = divmod(rem, 100)
+    return f"{h}:{m:02d}:{sec:02d}.{cs:02d}"
 
 
 def _build_ass(words: list[dict], out_path: pathlib.Path, total: float) -> pathlib.Path:
@@ -136,12 +147,37 @@ def _rel_or_escaped(target: pathlib.Path, base: pathlib.Path) -> str:
     return f"'{p}'"
 
 
+def _cutin_path(img_path: str) -> str:
+    """Crop-reframe of an approved still (R&D 7.1): a free second shot. Center crop,
+    biased toward the upper third where 9:16 subjects sit; written next to the source."""
+    from PIL import Image
+
+    src = pathlib.Path(img_path)
+    out = src.with_name(src.stem + "_cutin.png")
+    with Image.open(src) as img:
+        cw, ch = int(img.width * CUTIN_SCALE), int(img.height * CUTIN_SCALE)
+        left = (img.width - cw) // 2
+        top = int((img.height - ch) * CUTIN_Y_BIAS)
+        img.crop((left, top, left + cw, top + ch)).save(out)
+    return str(out)
+
+
 def assemble(spec: dict, audio_path: str, image_paths: list[str], words_json: str,
              out_master: str, out_proxy: str, music_dir: str | None = None,
-             music_seed: str = "") -> tuple[str, str]:
+             music_seed: str = "", archival_beats: list[int] | None = None) -> tuple[str, str]:
     from moviepy import AudioFileClip, CompositeVideoClip, ImageClip
+    from PIL import Image
 
     from .audiofx import build_final_audio, pick_music
+
+    # Everything absolute UP FRONT: the burn/mux ffmpeg pass below runs with cwd set to
+    # the run assets dir, and the bot hands us paths relative to the REPO root ("state\runs\...")
+    # - those break the moment cwd changes (live failure 2026-08-04 at Gate-3 assembly).
+    audio_path = str(pathlib.Path(audio_path).resolve())
+    words_json = str(pathlib.Path(words_json).resolve())
+    image_paths = [str(pathlib.Path(p).resolve()) for p in image_paths]
+    out_master = str(pathlib.Path(out_master).resolve())
+    out_proxy = str(pathlib.Path(out_proxy).resolve())
 
     with AudioFileClip(audio_path) as a:
         total = a.duration
@@ -157,23 +193,35 @@ def assemble(spec: dict, audio_path: str, image_paths: list[str], words_json: st
         durations = _beat_durations(spec, total)
 
     # Map images to segments: hook shares the first beat image; payoff/cta share the last.
+    # A segment is archival-backed when the beat whose image it shows is archival - those
+    # frames never get cut-ins (or any crop) because the letterbox IS the composition.
+    archival = set(archival_beats or [])
+    n_beats = len(image_paths)
+    seg_beat = [0] + list(range(n_beats)) + [n_beats - 1]
     seg_images = [image_paths[0]] + list(image_paths) + [image_paths[-1]]
     seg_images = seg_images[: len(durations)]
     while len(seg_images) < len(durations):
         seg_images.append(image_paths[-1])
+        seg_beat.append(n_beats - 1)
+
+    def _kb_clip(path: str, start: float, dur: float) -> ImageClip:
+        # Scale from the image's REAL size (was hardcoded 768x1344, which over-zoomed
+        # 1080x1920 archival letterbox frames 1.4x and cropped them - fixed 2026-08-06).
+        with Image.open(path) as im:
+            s = max(TARGET_W / im.width, TARGET_H / im.height)
+        return (ImageClip(path).with_duration(dur).with_start(start)
+                .resized(lambda tt, d=dur, sc=s: sc * (1.0 + 0.06 * (tt / max(d, 0.1))))
+                .with_position("center"))
 
     clips = []
     t = 0.0
-    base_scale = max(TARGET_W / 768, TARGET_H / 1344)  # cover the canvas
-    for img_path, dur in zip(seg_images, durations, strict=True):
-        clip = (
-            ImageClip(img_path)
-            .with_duration(dur)
-            .with_start(t)
-            .resized(lambda tt, d=dur, s=base_scale: s * (1.0 + 0.06 * (tt / max(d, 0.1))))
-            .with_position("center")
-        )
-        clips.append(clip)
+    for j, (img_path, dur) in enumerate(zip(seg_images, durations, strict=True)):
+        if dur >= CUTIN_MIN_S and seg_beat[j] not in archival:
+            wide = dur * CUTIN_SPLIT
+            clips.append(_kb_clip(img_path, t, wide))
+            clips.append(_kb_clip(_cutin_path(img_path), t + wide, dur - wide))
+        else:
+            clips.append(_kb_clip(img_path, t, dur))
         t += dur
 
     master = pathlib.Path(out_master)
@@ -199,10 +247,14 @@ def assemble(spec: dict, audio_path: str, image_paths: list[str], words_json: st
            f":fontsdir={_rel_or_escaped(FONTS_DIR, assets)}")
     # +faststart puts the moov atom at the file head so Discord/browsers can stream-preview
     # the mp4 (without it the attachment shows but won't play inline - user-reported bug).
+    # bt709 tags (R&D 7.4): untagged H.264 renders washed-out/shifted in some players and
+    # after YouTube's transcode - tag what we actually produce (sRGB-ish -> bt709).
     _run_ff([_ffmpeg(), "-hide_banner", "-y",
              "-i", str(silent), "-i", str(mixed),
              "-vf", sub, "-c:v", "libx264", "-preset", "medium", "-crf", "19",
-             "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-shortest",
+             "-pix_fmt", "yuv420p", "-colorspace", "bt709", "-color_primaries", "bt709",
+             "-color_trc", "bt709", "-color_range", "tv",
+             "-c:a", "aac", "-b:a", "192k", "-shortest",
              "-movflags", "+faststart", str(master)], cwd=str(assets))
     silent.unlink(missing_ok=True)
 

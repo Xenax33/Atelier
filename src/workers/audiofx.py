@@ -68,11 +68,17 @@ def _loudnorm_pass2(measured: dict, target_i: float) -> str:
 
 def voice_chain(wav_in: str | pathlib.Path, wav_out: str | pathlib.Path) -> str:
     """Raw TTS -> broadcast-ish narration: rumble filter, de-ess, gentle 3:1 glue,
-    -16 LUFS. No time-stretching anywhere, so word/beat timings stay valid."""
-    pre = "highpass=f=80,deesser,acompressor=threshold=-20dB:ratio=3:attack=5:release=150,"
+    -16 LUFS, 0.3s tail pad. No time-stretching anywhere, so word/beat timings stay
+    valid (apad only APPENDS silence - starts never shift)."""
+    # deesser needs explicit intensity: its default is i=0, which is a pass-through
+    # (caught in review 2026-08-06 - the original bare "deesser" de-essed nothing).
+    pre = ("highpass=f=80,deesser=i=0.35:m=0.5:f=0.5,"
+           "acompressor=threshold=-20dB:ratio=3:attack=5:release=150,")
     measured = _measure_loudnorm(["-i", str(wav_in)], pre, VOICE_LUFS)
+    # apad sits AFTER loudnorm so the measured stats stay valid for the linear pass;
+    # it keeps the last word off the hard end of the video (R&D 5.3).
     _run([_ffmpeg(), "-hide_banner", "-y", "-i", str(wav_in),
-          "-af", pre + _loudnorm_pass2(measured, VOICE_LUFS),
+          "-af", pre + _loudnorm_pass2(measured, VOICE_LUFS) + ",apad=pad_dur=0.3",
           "-ar", "48000", str(wav_out)])
     return str(wav_out)
 

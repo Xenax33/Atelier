@@ -20,6 +20,7 @@ class Beat(TypedDict):
 class ShortSpec(TypedDict):
     title: str          # YouTube title suggestion
     hook: str           # spoken opening line, must grab in <=2s of speech
+    hook_type: str      # hook taxonomy (R&D 4.8): question | surprising_fact | bold_claim | whats_wrong_here | myth_bust
     beats: list[Beat]
     payoff: str         # spoken resolution that keeps the hook's promise
     cta: str            # one soft call-to-action line

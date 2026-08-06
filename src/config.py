@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     # SearXNG (TASK-009; local instance in WSL, optional until deployed)
     searxng_base_url: str = "http://127.0.0.1:8888"
 
+    # NASA ADS (R&D 4.6): free token from ui.adsabs.harvard.edu/user/settings/token.
+    # Optional - the ads_search adapter stays dormant while this is empty.
+    ads_api_token: str = ""
+
     # Paths
     state_dir: str = "./state"
     db_path: str = "./atelier.db"

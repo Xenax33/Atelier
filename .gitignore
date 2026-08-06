@@ -66,3 +66,6 @@ comfyui_zluda/
 
 # --- local runtime binaries (llama.cpp etc.) ---
 bin/
+state/.studio-on
+state/.render-lock
+state/tts-oov.log

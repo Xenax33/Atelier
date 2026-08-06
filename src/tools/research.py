@@ -160,6 +160,142 @@ def paper_search(query: str, limit: int = 4) -> list[dict]:
     return out[: limit * 2]
 
 
+def chronicling_america_search(query: str, limit: int = 3) -> list[dict]:
+    """Historical US newspaper pages via the loc.gov JSON API (R&D 4.6): how a discovery
+    was reported AT THE TIME. The legacy chroniclingamerica.loc.gov API was retired in
+    2025 - pre-2025 tutorials point at a dead endpoint. Pre-1929 pages are public domain.
+    loc.gov rate-limits bursts and 403s some networks (it 403'd the work laptop during
+    development, 2026-08-06) - fail-soft like every adapter here; VERIFY from the studio
+    box once."""
+    try:
+        r = httpx.get(
+            "https://www.loc.gov/collections/chronicling-america/",
+            params={"q": query, "fo": "json", "c": limit},
+            headers=_UA, timeout=_TIMEOUT, follow_redirects=True,
+        )
+        r.raise_for_status()
+        results = r.json().get("results", [])
+    except (httpx.HTTPError, ValueError):
+        return []
+    out = []
+    for x in results[:limit]:
+        desc = x.get("description", "")
+        if isinstance(desc, list):
+            desc = " ".join(str(d) for d in desc)
+        out.append({"title": str(x.get("title", "")), "date": str(x.get("date", "")),
+                    "text": str(desc)[:400], "url": str(x.get("url", ""))})
+    return out
+
+
+def openlibrary_search(query: str, limit: int = 3) -> list[dict]:
+    """Book leads from Open Library (keyless). Mostly title/year/author metadata (the
+    first_sentence field is usually absent - verified live 2026-08-06), so these ground
+    'documented by <year>' claims rather than carrying quotable text."""
+    try:
+        r = httpx.get(
+            "https://openlibrary.org/search.json",
+            params={"q": query, "limit": limit,
+                    "fields": "title,first_publish_year,author_name,key"},
+            headers=_UA, timeout=_TIMEOUT,
+        )
+        r.raise_for_status()
+        docs = r.json().get("docs", [])
+    except (httpx.HTTPError, ValueError):
+        return []
+    return [
+        {"title": str(d.get("title", "")), "year": str(d.get("first_publish_year") or ""),
+         "author": (d.get("author_name") or ["unknown"])[0],
+         "url": "https://openlibrary.org" + str(d.get("key", ""))}
+        for d in docs[:limit]
+    ]
+
+
+def ads_search(query: str, limit: int = 3) -> list[dict]:
+    """NASA ADS papers - the only source covering the 1840s-1970s astronomy record
+    (R&D 4.6). Needs the free token in .env (ADS_API_TOKEN, quota ~5000/day); returns
+    [] while the token is unset so the adapter ships dormant."""
+    token = get_settings().ads_api_token
+    if not token:
+        return []
+    try:
+        r = httpx.get(
+            "https://api.adsabs.harvard.edu/v1/search/query",
+            params={"q": query, "fl": "title,year,abstract,doi", "rows": limit},
+            headers={**_UA, "Authorization": f"Bearer {token}"}, timeout=_TIMEOUT,
+        )
+        r.raise_for_status()
+        docs = r.json().get("response", {}).get("docs", [])
+    except (httpx.HTTPError, ValueError):
+        return []
+    return [
+        {"title": (d.get("title") or [""])[0], "year": str(d.get("year") or ""),
+         "abstract": (d.get("abstract") or "")[:400], "doi": (d.get("doi") or [""])[0]}
+        for d in docs[:limit]
+    ]
+
+
+def wikidata_year_facts(term: str) -> dict:
+    """Entity-link a term on Wikidata (CC0, keyless) and return its dated facts:
+    {label, description, years: {birth/death/discovered: int}}. {} when the term does
+    not link or carries no dates. Birth/death (P569/P570) are densely populated;
+    discovery time (P575) is sparse - verified live 2026-08-06."""
+    try:
+        r = httpx.get("https://www.wikidata.org/w/api.php",
+                      params={"action": "wbsearchentities", "search": term, "language": "en",
+                              "format": "json", "limit": 1}, headers=_UA, timeout=_TIMEOUT)
+        r.raise_for_status()
+        hits = r.json().get("search", [])
+        if not hits:
+            return {}
+        qid = hits[0]["id"]
+        r = httpx.get("https://www.wikidata.org/w/api.php",
+                      params={"action": "wbgetentities", "ids": qid, "props": "claims",
+                              "format": "json"}, headers=_UA, timeout=_TIMEOUT)
+        r.raise_for_status()
+        claims = r.json().get("entities", {}).get(qid, {}).get("claims", {})
+    except (httpx.HTTPError, ValueError, KeyError):
+        return {}
+    years = {}
+    for prop, tag in (("P569", "birth"), ("P570", "death"), ("P575", "discovered")):
+        for c in claims.get(prop, []):
+            t = c.get("mainsnak", {}).get("datavalue", {}).get("value", {}).get("time", "")
+            m = _re.match(r"[+-](\d{4})", str(t))
+            if m:
+                years[tag] = int(m.group(1))
+                break
+    if not years:
+        return {}
+    return {"label": hits[0].get("label", term),
+            "description": hits[0].get("description", ""), "years": years}
+
+
+def wikidata_year_flags(terms: list[str], script: str, max_flags: int = 3) -> list[str]:
+    """Deterministic year cross-check (R&D 4.5): for each already-identified entity,
+    flag script years WITHIN 2 of a Wikidata date but not equal to it - the classic
+    LLM off-by-one date error. Exact matches and far-apart years pass silently.
+    ADVISORY ONLY (Wikidata is crowd-edited): a flag is a prompt for the human at
+    Gate 1, never an auto-block. Near-miss on an unrelated year is a possible false
+    positive - hence the wording and the cap."""
+    script_years = {int(y) for y in _re.findall(r"\b(1[0-9]{3}|20[0-9]{2})\b", script)}
+    if not script_years:
+        return []
+    flags: list[str] = []
+    for term in dict.fromkeys(t for t in terms if t.strip()):
+        if len(flags) >= max_flags:
+            break
+        facts = wikidata_year_facts(term)
+        for tag, year in (facts.get("years") or {}).items():
+            if year in script_years:
+                continue
+            near = sorted(y for y in script_years if 0 < abs(y - year) <= 2)
+            if near:
+                flags.append(
+                    f"Script mentions {near[0]}, but Wikidata has {facts['label']} "
+                    f"{tag} = {year} ({facts.get('description', 'no description')}). "
+                    "Verify which is right.")
+    return flags[:max_flags]
+
+
 def searxng_search(query: str, limit: int = 8, engines: str = "") -> list[dict]:
     """General web via the local SearXNG instance. Returns [] gracefully when it is not up.
 

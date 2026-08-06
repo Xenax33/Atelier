@@ -11,15 +11,21 @@ from __future__ import annotations
 
 from ..gateway.client import chat_json
 
-_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "prompts": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"type": "string"}},
-        "has_people": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"type": "boolean"}},
-    },
-    "required": ["prompts", "has_people"],
-    "additionalProperties": False,
-}
+
+def _schema(n: int) -> dict:
+    """Exact-count schema: constrained decoding then GUARANTEES one prompt per beat.
+    The old minItems=1 version let the model return fewer prompts than beats, and the
+    pad-with-writer-prompts fallback silently shifted prompts onto the wrong beats
+    (diagnosed 2026-08-06: off-topic images with no per-beat traceability)."""
+    return {
+        "type": "object",
+        "properties": {
+            "prompts": {"type": "array", "minItems": n, "maxItems": n, "items": {"type": "string"}},
+            "has_people": {"type": "array", "minItems": n, "maxItems": n, "items": {"type": "boolean"}},
+        },
+        "required": ["prompts", "has_people"],
+        "additionalProperties": False,
+    }
 
 _SYSTEM = """You are the visual director for illustrated 60-second science Shorts. For each beat's
 narration, write ONE image-generation prompt describing a CONCRETE, PHYSICALLY DEPICTABLE scene.
@@ -30,6 +36,15 @@ ABSOLUTE RULES (the image model CANNOT render these; asking produces garbage):
 - NEVER request abstract concepts directly ("infinity", "a pattern", "an idea", "numbers flowing").
   Translate them into physical metaphors a painter could paint: a spiral staircase descending to
   one glowing door; a marble rolling down a funnel; a locksmith facing a wall of locks.
+
+DEPICT LITERALLY FIRST. If the narration names a concrete person, object, place, or phenomenon
+(a scientist, an instrument, a storm, a beam of light, a laboratory), show THAT, era-appropriate.
+Reach for a metaphor ONLY when the beat offers nothing physically depictable - and the metaphor
+must stay recognizably tied to this video's subject: reuse a concrete noun from the beat's
+narration or the topic inside the scene, so a viewer hearing the narration instantly sees the
+connection. NEVER introduce an unrelated profession, instrument, animal, or setting that the
+narration does not imply (a beat about sound waves is a tuning fork, a bell, rippling water -
+never a random musician).
 
 EVERY prompt must contain, in this order:
 1. ONE main subject (a person, creature, object, or place - specific and era-appropriate).
@@ -78,7 +93,8 @@ def direct_visuals(beats: list[dict], topic: str) -> tuple[list[str], list[bool]
     user = (f"Topic: {topic}\n\nBeat narrations:\n{lines}\n\n"
             f"Return exactly {len(beats)} prompts, in order.")
     messages = [{"role": "system", "content": _SYSTEM}, {"role": "user", "content": user}]
-    result = chat_json(messages, _SCHEMA, "visual_prompts", temperature=0.6, max_tokens=1200)
+    schema = _schema(len(beats))
+    result = chat_json(messages, schema, "visual_prompts", temperature=0.6, max_tokens=1200)
     prompts = result["prompts"]
     for _round in range(2):
         bad = _violations(prompts)
@@ -91,7 +107,7 @@ def direct_visuals(beats: list[dict], topic: str) -> tuple[list[str], list[bool]
                          f"numbers/formulas/labels/screens):\n{offenders}\nRewrite ALL {len(beats)} "
                          "prompts; replace every violation with a physical metaphor per the worked "
                          "examples (objects and people only, nothing that implies written symbols)."})
-        result = chat_json(messages, _SCHEMA, "visual_prompts", temperature=0.7, max_tokens=1200)
+        result = chat_json(messages, schema, "visual_prompts", temperature=0.7, max_tokens=1200)
         prompts = result["prompts"]
     if len(prompts) < len(beats):
         prompts += [b.get("visual_prompt", "") for b in beats[len(prompts):]]

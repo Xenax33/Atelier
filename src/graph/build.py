@@ -106,6 +106,22 @@ def factcheck(state: ShortState) -> dict:
         c["citation_url"] = ev.get("url", "")
         if c["verdict"] == "supported" and not c["citation_ok"]:
             c["verdict"] = "uncertain"
+
+    # Wikidata year cross-check (R&D 4.5, TASK-034): deterministic, ADVISORY-only flags
+    # for near-miss dates (the classic off-by-one). Emitted as "uncertain" claims so the
+    # existing flagged-claims card at Gate 1 renders them with zero bot changes. Terms are
+    # entities already identified upstream - no fragile name extraction from prose.
+    try:
+        from ..tools.research import wikidata_year_flags
+
+        terms = [e["title"] for e in evidence if e.get("source") == "wikipedia"]
+        terms += [s for b in state["spec"]["beats"]
+                  if (s := (b.get("archival_subject") or "").strip())]
+        for flag in wikidata_year_flags(terms, state.get("narration_text", "")):
+            claims.append({"claim": flag, "verdict": "uncertain", "evidence_ref": "none",
+                           "citation_ok": False, "citation_url": ""})
+    except Exception:  # noqa: BLE001 - advisory layer must never block the audit
+        pass
     run = _run_dir(state)
     (run / "claims.json").write_text(json.dumps(claims, indent=1), encoding="utf-8")
 
@@ -183,7 +199,12 @@ def gate_audio(state: ShortState) -> Command[Literal["visuals", "draft", "abort"
 def visuals(state: ShortState) -> dict:
     """Per beat: archival image if the writer flagged one AND a license-safe, relevant
     candidate exists (CPU/network work, done BEFORE the GPU dance); SDXL for the rest.
-    Archival failures fall back to SDXL silently - archival is an enhancement, never a blocker."""
+    Archival failures still fall back to SDXL - archival is an enhancement, never a
+    blocker - but every decision AND every swallowed error is now recorded in
+    assets/visual_plan.json (2026-08-06: an off-topic-image + zero-archival run was
+    undiagnosable because this node's two `except: pass` blocks left no trace)."""
+    import json
+
     from ..tools.archival import (
         ARCHIVAL_MIN_SCORE,
         fetch_and_frame,
@@ -194,9 +215,21 @@ def visuals(state: ShortState) -> dict:
 
     run = _run_dir(state)
     assets = run / "assets"
+    assets.mkdir(parents=True, exist_ok=True)
     beats = [dict(b) for b in state["spec"]["beats"]]
-    # Visual Director pass: translate narration into depictable scenes (concept -> physical
-    # metaphor, never text/numbers). Fixes the "random shapes" failure. Fallback: writer prompts.
+    # Writer prompts snapshotted BEFORE the Visual Director overwrites them: archival CLIP
+    # scoring must compare candidates against the writer's LITERAL scene description. Scoring
+    # against the Director's metaphor was a live bug (2026-08-06): a genuine portrait scores
+    # near-zero against "a marble rolling down a spiral funnel", lands under the 0.28
+    # threshold, and every archival beat silently falls back to SDXL.
+    writer_prompts = [(b.get("visual_prompt") or "").strip() for b in beats]
+    plan: list[dict] = [{"beat": i, "narration": b.get("narration", ""),
+                         "prompt": writer_prompts[i], "prompt_source": "writer",
+                         "style": "painterly", "archival": {"status": "not-requested"}}
+                        for i, b in enumerate(beats)]
+
+    # Visual Director pass: narration -> depictable scene (literal-first, anchored metaphor
+    # as fallback - agents/visdir.py). On failure the writer prompts still render.
     styles = ["painterly"] * len(beats)  # safe default (people assumed)
     try:
         from ..agents.visdir import direct_visuals
@@ -205,40 +238,94 @@ def visuals(state: ShortState) -> dict:
         for j, (b, p) in enumerate(zip(beats, directed, strict=True)):
             if p.strip():
                 b["visual_prompt"] = p.strip()
+                plan[j]["prompt"] = p.strip()
+                plan[j]["prompt_source"] = "director"
             # Smart routing (2026-08-02): cinematic realism only for people-free scenes.
             styles[j] = "painterly" if has_people[j] else "cinematic"
-    except Exception:  # noqa: BLE001
-        pass
+            plan[j]["style"] = styles[j]
+    except Exception as e:  # noqa: BLE001 - director is an enhancer; record why it was skipped
+        for entry in plan:
+            entry["director_error"] = repr(e)
     paths: list[str | None] = [None] * len(beats)
     used: list[dict] = []
+    # Resume-friendly: a beat still that already exists in THIS run's assets was rendered
+    # by an earlier attempt of this same run (same spec, same seeds) - reuse it instead of
+    # burning ~5 GPU-minutes again (2026-08-04: a crash on beat 5 of 5 cost a full re-render).
+    # Only for non-archival beats: archival ones must refetch so the license/credit metadata
+    # in archival_used stays complete.
     for i, b in enumerate(beats):
+        if not (b.get("archival_subject") or "").strip():
+            existing = assets / f"beat_{i:02d}.png"
+            if existing.exists():
+                paths[i] = str(existing)
+                plan[i]["reused"] = True
+    for i, b in enumerate(beats):
+        if paths[i] is not None:
+            continue
         subject = (b.get("archival_subject") or "").strip()
         if not subject:
             continue
         try:
-            scored = score_candidates(find_archival(subject), subject, b.get("visual_prompt", ""))
+            scored = score_candidates(find_archival(subject), subject, writer_prompts[i])
             if scored and scored[0][0] >= ARCHIVAL_MIN_SCORE:
                 best = scored[0][1]
                 paths[i] = fetch_and_frame(best, str(assets / f"beat_{i:02d}.png"))
                 used.append({"beat": i, "score": scored[0][0], **best.to_dict()})
-        except Exception:  # noqa: BLE001 - fall through to SDXL
-            pass
+                plan[i]["archival"] = {"status": "used", "subject": subject,
+                                       "score": scored[0][0], "source": best.source_url}
+            else:
+                plan[i]["archival"] = {
+                    "status": "below-threshold" if scored else "no-candidates",
+                    "subject": subject, "candidates": len(scored),
+                    "top_score": scored[0][0] if scored else None,
+                    "threshold": ARCHIVAL_MIN_SCORE,
+                }
+        except Exception as e:  # noqa: BLE001 - fall through to SDXL, but leave the reason
+            plan[i]["archival"] = {"status": "error", "subject": subject, "error": repr(e)}
+
     todo = [i for i in range(len(beats)) if paths[i] is None]
+    prompts_to_render = []
+    for i in todo:
+        p = (beats[i].get("visual_prompt") or "").strip()
+        if not p:
+            # Style-vacuum guard: an empty prompt + style suffix makes SDXL invent an
+            # arbitrary subject (the off-topic-image failure class). Anchor to the topic.
+            p = f"{state.get('topic', '')}, {beats[i].get('caption', '')}".strip(", ")
+            plan[i]["prompt"] = p
+            plan[i]["prompt_source"] = "topic-fallback"
+        prompts_to_render.append(p)
+    # Snapshot the plan BEFORE the GPU dance so a mid-render crash still leaves the
+    # full per-beat decision trail on disk for /resume-time diagnosis.
+    plan_file = assets / "visual_plan.json"
+    plan_file.write_text(json.dumps(plan, indent=1), encoding="utf-8")
     if todo:
         rendered = render_beat_stills(
-            [beats[i]["visual_prompt"] for i in todo], assets, REPO_ROOT, indices=todo,
+            prompts_to_render, assets, REPO_ROOT, indices=todo,
             styles=[styles[i] for i in todo])
         for i, p in zip(todo, rendered, strict=True):
             paths[i] = p
+    for i, p in enumerate(paths):
+        plan[i]["image"] = p
+    plan_file.write_text(json.dumps(plan, indent=1), encoding="utf-8")
     return {"image_paths": [p for p in paths if p], "archival_used": used}
 
 
 def captions(state: ShortState) -> dict:
-    from ..workers.captions import word_timestamps
+    """ASR for TIMING, script for TEXT (R&D 7.3): raw whisper words land in
+    words_asr.json (kept for mispronunciation diffing later); words.json - what the
+    caption burner consumes - carries the script's own spelling on ASR timings."""
+    import json
+
+    from ..workers.captions import align_to_script, word_timestamps
 
     run = _run_dir(state)
     out = run / "assets" / "words.json"
-    word_timestamps(state["audio_path"], out)
+    asr = word_timestamps(state["audio_path"], run / "assets" / "words_asr.json")
+    try:
+        words = align_to_script(state.get("narration_text", ""), asr)
+    except Exception:  # noqa: BLE001 - alignment is an enhancer; ASR captions still work
+        words = asr
+    out.write_text(json.dumps(words, indent=1), encoding="utf-8")
     return {"words_path": str(out)}
 
 
@@ -250,6 +337,7 @@ def assemble_node(state: ShortState) -> dict:
         state["spec"], state["audio_path"], state["image_paths"], state["words_path"],
         str(run / "render" / "master.mp4"), str(run / "render" / "proxy.mp4"),
         music_dir=str(REPO_ROOT / "assets" / "music"), music_seed=state["run_id"],
+        archival_beats=[u["beat"] for u in state.get("archival_used", [])],
     )
     return {"master_path": master, "proxy_path": proxy}
 

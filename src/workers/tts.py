@@ -14,18 +14,27 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
+import time
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 _MODEL = REPO_ROOT / "models" / "tts" / "kokoro-v1.0.onnx"
 _VOICES = REPO_ROOT / "models" / "tts" / "voices-v1.0.bin"
+LEXICON_PATH = REPO_ROOT / "config" / "pronunciation_lexicon.json"
+OOV_LOG = REPO_ROOT / "state" / "tts-oov.log"
 DEFAULT_VOICE = "af_heart"
 # Shorts pacing (R&D 5.2): slightly brisk delivery; per-video knob, judged at Gate 2.
 DEFAULT_SPEED = 1.05
 SEGMENT_GAP_S = 0.45  # breathing room between hook/beats/outro
 TRIM_DB = -45.0  # edge-silence threshold
 EDGE_PAD_S = 0.05
+# Kokoro hard-caps input at 510 phoneme tokens; per-segment synthesis stays far under,
+# but if a segment ever exceeds this we fall back to kokoro-onnx's own text splitting.
+MAX_SEGMENT_PHONEMES = 500
 
 _kokoro = None
+_g2p = None
+_g2p_broken = False
 
 
 def _model():
@@ -35,6 +44,65 @@ def _model():
 
         _kokoro = Kokoro(str(_MODEL), str(_VOICES))
     return _kokoro
+
+
+def _get_g2p():
+    """misaki G2P singleton (R&D 5.1: the G2P Kokoro was trained with - science names come
+    out right, and the lexicon can override the rest). Missing/broken misaki -> None, and
+    every caller falls back to kokoro-onnx's built-in phonemization."""
+    global _g2p, _g2p_broken
+    if _g2p is None and not _g2p_broken:
+        try:
+            from misaki import en
+
+            _g2p = en.G2P(trf=False, british=False, fallback=None)
+        except Exception:  # noqa: BLE001 - TTS must keep working without misaki
+            _g2p_broken = True
+    return _g2p
+
+
+def _load_lexicon() -> dict[str, str]:
+    try:
+        lex = json.loads(LEXICON_PATH.read_text(encoding="utf-8"))
+        return {k: v for k, v in lex.items() if not k.startswith("_")}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _apply_lexicon(text: str) -> str:
+    """Wrap known-tricky words in misaki's inline override syntax [word](/phonemes/)."""
+    for word, phonemes in _load_lexicon().items():
+        text = re.sub(rf"\b{re.escape(word)}\b", f"[{word}](/{phonemes}/)", text,
+                      flags=re.IGNORECASE)
+    return text
+
+
+def _phonemize(text: str) -> str | None:
+    """Text -> Kokoro phonemes via misaki + lexicon. Returns None (= use the built-in
+    espeak path) when misaki is unavailable, the result is over the token cap, or any
+    word came out unvoiced - a silently-dropped word is worse than a mangled one.
+    Unvoiced words are appended to state/tts-oov.log so they can join the lexicon."""
+    g2p = _get_g2p()
+    if g2p is None:
+        return None
+    try:
+        ps, tokens = g2p(_apply_lexicon(text))
+    except Exception:  # noqa: BLE001
+        return None
+    oov = [t.text for t in tokens
+           if any(c.isalpha() for c in t.text) and not (t.phonemes or "").strip()]
+    if oov or not ps or "❓" in ps:
+        try:
+            OOV_LOG.parent.mkdir(parents=True, exist_ok=True)
+            with OOV_LOG.open("a", encoding="utf-8") as f:
+                f.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} | {', '.join(oov) or '<empty/unknown>'}"
+                        f" | {text[:120]}\n")
+        except OSError:
+            pass
+        return None
+    if len(ps) > MAX_SEGMENT_PHONEMES:
+        return None
+    return ps
 
 
 def _trim_silence(samples, sr: int):
@@ -80,7 +148,12 @@ def render_narration_segments(segments: list[tuple[str, str]], out_path: str | p
     cursor = 0.0
     sample_rate = 24000
     for i, (label, text) in enumerate(segments):
-        samples, sample_rate = kokoro.create(text, voice=voice, speed=speed)
+        phonemes = _phonemize(text)
+        if phonemes is not None:
+            samples, sample_rate = kokoro.create(phonemes, voice=voice, speed=speed,
+                                                 is_phonemes=True)
+        else:
+            samples, sample_rate = kokoro.create(text, voice=voice, speed=speed)
         samples = _trim_silence(np.asarray(samples), sample_rate)
         dur = len(samples) / sample_rate
         timing.append({"label": label, "start": round(cursor, 3), "end": round(cursor + dur, 3)})

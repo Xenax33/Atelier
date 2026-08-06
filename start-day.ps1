@@ -25,7 +25,37 @@ param(
 $ErrorActionPreference = 'Stop'
 $Root = $PSScriptRoot
 $Marker = Join-Path $Root "state\.studio-on"
-if ($IfOn -and -not (Test-Path $Marker)) { exit 0 }
+
+# The marker is BOOT-SESSION-SCOPED (owner demand 2026-08-06: the studio must NEVER turn
+# itself on after a reboot/power cut - manual `./start-day.ps1` is the only way to start it).
+# start-day stamps the marker with the current boot time; the watchdog's -IfOn honors it
+# only while the boot time still matches. After any reboot the marker is stale -> the
+# watchdog deletes it and does nothing. Self-healing still works WITHIN a session you
+# started yourself (crashed llama/bot come back), which is all the watchdog is for.
+$BootId = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToString("o")
+if ($IfOn) {
+    if (-not (Test-Path $Marker)) { exit 0 }
+    $markerBoot = (Get-Content $Marker -First 1 -ErrorAction SilentlyContinue)
+    if ($markerBoot -ne $BootId) {
+        Remove-Item $Marker -Force -ErrorAction SilentlyContinue
+        exit 0   # studio was on before a reboot: stays OFF until started manually
+    }
+}
+
+# Render lock: the visuals worker stops llama ON PURPOSE while ComfyUI renders (VRAM rule).
+# While the lock is fresh, do NOTHING - restarting llama mid-render starves SDXL of VRAM.
+# The worker refreshes it per image; >80 min without a refresh means the render died, so
+# clear it and resurrect normally.
+$RenderLock = Join-Path $Root "state\.render-lock"
+if (Test-Path $RenderLock) {
+    $lockAge = (Get-Date) - (Get-Item $RenderLock).LastWriteTime
+    if ($lockAge.TotalMinutes -lt 80) {
+        Write-Host "[atelier] render in progress (lock $([int]$lockAge.TotalMinutes)m old): GPU belongs to ComfyUI, skipping." -ForegroundColor Yellow
+        exit 0
+    }
+    Remove-Item $RenderLock -Force
+    Write-Host "[atelier] stale render lock cleared (render likely crashed); resuming normal boot." -ForegroundColor Yellow
+}
 
 function Wait-Endpoint {
     param([string]$Url, [int]$TimeoutSec = 120)
@@ -112,7 +142,8 @@ if ($envReady) {
     Write-Host "[atelier] .env missing or DISCORD_BOT_TOKEN unset: app not launched (see .env.example)." -ForegroundColor Yellow
 }
 
-# 4) Mark the studio ON (the watchdog keeps it alive until stop-day.ps1 clears this).
+# 4) Mark the studio ON for THIS BOOT SESSION only (line 1 = boot id the -IfOn check
+# compares; a reboot invalidates it, so the studio never auto-starts after a restart).
 New-Item -ItemType Directory -Path (Split-Path $Marker) -Force | Out-Null
-Set-Content -Path $Marker -Value (Get-Date -Format o) -Encoding ascii
-Write-Host "[atelier] boot sequence complete; watchdog armed." -ForegroundColor Green
+Set-Content -Path $Marker -Value @($BootId, (Get-Date -Format o)) -Encoding ascii
+Write-Host "[atelier] boot sequence complete; watchdog armed for this session (a reboot disarms it)." -ForegroundColor Green

@@ -1,0 +1,16 @@
+{
+  "_comment": "Kokoro pronunciation lexicon (R&D 2026-08-03, 5.1). Keys are matched as whole words, case-insensitive, in narration text; values are misaki/Kokoro phonemes (NOT standard IPA - diphthongs are A=ei, I=ai, O=ou, W=au, Y=oi; validate with scripts/check_lexicon.py before committing). Words misaki can't voice get logged to state/tts-oov.log - promote them here.",
+  "Christiaan": "kɹˈɪstiɑn",
+  "Huygens": "hˈIɡənz",
+  "Euler": "ˈYlɚ",
+  "Curie": "kjˈʊɹi",
+  "Lavoisier": "ləvwˈɑziA",
+  "Roentgen": "ˈɹɛntɡən",
+  "Descartes": "dAkˈɑɹt",
+  "Archimedes": "ɑɹkəmˈidiz",
+  "Leibniz": "lˈIbnɪts",
+  "Gauss": "ɡˈWs",
+  "Euclid": "jˈuklɪd",
+  "Collatz": "kˈɑlæts",
+  "chirality": "kIɹˈælɪTi"
+}

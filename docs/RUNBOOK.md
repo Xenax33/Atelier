@@ -20,10 +20,15 @@ Expected green state:
 
 `AtelierWatchdog` (Task Scheduler) fires every 5 minutes and runs
 `scripts\watchdog-quiet.vbs` -> `start-day.ps1 -IfOn`. The `-IfOn` guard means it only acts
-while `state\.studio-on` exists (written by start-day, cleared ONLY by stop-day). Consequences:
+while `state\.studio-on` exists AND its recorded boot id matches the current boot
+(start-day stamps it; stop-day clears it). Consequences:
 
-- A crash, reboot, or POWER CUT while the studio is armed self-heals within 5 minutes of the
-  next boot - llama, SearXNG, and the bot all come back on their own. This is by design.
+- **The studio NEVER turns itself on after a reboot or power cut** (owner demand
+  2026-08-06: it used to, and it was unwanted). After any restart the marker is stale;
+  the watchdog deletes it and does nothing. `./start-day.ps1` is the only way to start
+  the studio - one manual command.
+- WITHIN a session you started yourself, a crashed llama/SearXNG/bot self-heals within
+  5 minutes. That is all the watchdog does.
 - It does NOT auto-resume an interrupted pipeline run - use Discord `/resume run_id:<id>`.
 - Before GAMING: run `stop-day.ps1`. It disarms the marker and frees the ~5-6 GB VRAM the
   brain holds; otherwise the watchdog will fight you for the GPU.
@@ -45,6 +50,20 @@ Set-ScheduledTask -TaskName "AtelierWatchdog" -Action $a
   resumes from its last gate. (Prove this in MVP DoD: kill mid-run, confirm resume.)
 - **A Discord gate button is dead after a restart** -> Views must be re-registered as **persistent** on
   startup; check `src/bot` registers them. Interactions expire (~15 min) - reply via message edits.
+
+## Kernel-cache snapshots (55-minute-recompile insurance)
+
+gfx1010 kernel compiles are exceptionally slow: a wiped MIOpen/ZLUDA cache costs a ~55 min
+GPU-pegged re-tune on the next render (it already happened once via a Windows cleanup tool,
+TASK-022). `scripts\snapshot-caches.ps1` zips the three caches (ZLUDA ComputeCache, ~/.miopen,
+~/.triton) to `F:\ml-caches\snapshots\<date>\`; `-Restore` puts the newest snapshot back.
+
+- Snapshot right after any verified warm render; re-snapshot when the first render after a
+  ComfyUI auto-git-pull runs slow (new kernels were compiled).
+- Once, from an admin shell: add Defender exclusions for `F:\ComfyUI-Zluda` and both cache
+  dirs (commands in the script header) - also kills the DLL false-positive/file-lock trap.
+- Exclude `%LOCALAPPDATA%\ZLUDA\ComputeCache` and `%USERPROFILE%\.miopen` from any cleanup
+  tools (CCleaner class).
 
 ## Known failures & fixes
 

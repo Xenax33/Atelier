@@ -106,9 +106,13 @@ def make_queries(topic: str) -> dict:
     )
 
 
-def gather_evidence(topic: str, max_items: int = 10) -> list[dict]:
+def gather_evidence(topic: str, max_items: int = 14) -> list[dict]:
     """Evidence pack for a chosen topic: [{source, title, text}]. The scriptwriter grounds
-    beats in THIS, and the fact-checker audits against it. Untrusted data, never instructions."""
+    beats in THIS, and the fact-checker audits against it. Untrusted data, never instructions.
+
+    Source order matters (R&D 4.6, until the reranker lands): wikipedia -> primary sources
+    (period newspapers, book record, ADS) -> papers -> web, so the [:max_items] cap trims
+    searxng snippets (the weakest source) first and never the DOI-bearing papers."""
     try:
         q = make_queries(topic)
         subject, queries = q["subject"], q["queries"]
@@ -120,18 +124,41 @@ def gather_evidence(topic: str, max_items: int = 10) -> list[dict]:
         if text:
             url = "https://en.wikipedia.org/wiki/" + hit["title"].replace(" ", "_")
             evidence.append({"source": "wikipedia", "title": hit["title"], "text": text[:1500], "url": url})
-    for query in queries:
-        for x in searxng_search(query, limit=3):
-            if x.get("content"):
-                evidence.append({"source": "web", "title": x["title"], "text": x["content"], "url": x.get("url", "")})
-    from ..tools.research import paper_search
+    # Primary-source depth (R&D 4.6): the pre-1990 record the paper APIs lack.
+    from ..tools.research import (
+        ads_search,
+        chronicling_america_search,
+        openlibrary_search,
+        paper_search,
+    )
 
+    for x in chronicling_america_search(subject, limit=2):
+        if x.get("title"):
+            evidence.append({"source": "newspaper",
+                             "title": f"{x['title']} ({x['date']})".strip(),
+                             "text": x["text"] or "(period newspaper page; see url)",
+                             "url": x["url"]})
+    for b in openlibrary_search(subject, limit=2):
+        if b.get("title"):
+            evidence.append({"source": "book", "title": b["title"],
+                             "text": f"Book on this subject, published {b['year'] or 'n.d.'} "
+                                     f"by {b['author']}.",
+                             "url": b["url"]})
+    for p in ads_search(subject, limit=2):  # dormant until ADS_API_TOKEN is set
+        if p.get("abstract"):
+            evidence.append({"source": "paper", "title": p["title"], "text": p["abstract"],
+                             "url": f"https://doi.org/{p['doi']}" if p.get("doi") else "",
+                             "doi": p.get("doi") or ""})
     papers = paper_search(subject, limit=2) or semantic_scholar_search(subject, limit=3)
     for p in papers:
         if p.get("abstract"):
             url = p.get("url") or (f"https://doi.org/{p['doi']}" if p.get("doi") else "")
             evidence.append({"source": "paper", "title": p["title"] or "", "text": p["abstract"],
                              "url": url, "doi": p.get("doi") or ""})
+    for query in queries:
+        for x in searxng_search(query, limit=3):
+            if x.get("content"):
+                evidence.append({"source": "web", "title": x["title"], "text": x["content"], "url": x.get("url", "")})
     return evidence[:max_items]
 
 

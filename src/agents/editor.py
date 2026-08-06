@@ -28,7 +28,10 @@ a pattern-interrupt or surprise early, concrete vivid detail over generalities, 
 keeps the hook's promise, correct length (130-155 spoken words), and no clickbait.
 
 Return the index of the best candidate and ONE punchy critique sentence per candidate
-(in order), each naming the single biggest strength or weakness.
+(in order), each naming the single biggest strength or weakness. Each hook carries a
+declared type (question / surprising_fact / bold_claim / whats_wrong_here / myth_bust) -
+when the hook is the strength or weakness, name its type in the critique so the taste
+profile learns which types land.
 
 Editorial profile:
 """
@@ -40,8 +43,8 @@ def rank_candidates(candidates: list[dict]) -> dict:
         words = len(narration_text(c).split())
         beats = " / ".join(b["narration"] for b in c["beats"])
         blocks.append(
-            f"[{i}] TITLE: {c['title']}\nHOOK: {c['hook']}\nBEATS: {beats}\n"
-            f"PAYOFF: {c['payoff']} ({words} words)"
+            f"[{i}] TITLE: {c['title']}\nHOOK ({c.get('hook_type', 'untyped')}): {c['hook']}\n"
+            f"BEATS: {beats}\nPAYOFF: {c['payoff']} ({words} words)"
         )
     result = chat_json(
         messages=[

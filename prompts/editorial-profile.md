@@ -34,3 +34,4 @@ _Last updated: 2026-08-02 (consolidated)._
 - 2026-08-04 | pick-idea | chose 'Michelson-Morley Experiment (1887)' from batch 20260804-f59939
 - 2026-08-04 | regen-feedback | 20260804-baceee: We need to go into a bit detail about the topic with a clear ending and mention the year like scientists until 1980 or whatever is the correct answer and we need to make sure that the script is for 60 seconds video. no more no less
 - 2026-08-04 | approve | 20260804-baceee: accepted the editor-recommended script
+- 2026-08-04 | reject | 20260804-baceee: rejected at final gate

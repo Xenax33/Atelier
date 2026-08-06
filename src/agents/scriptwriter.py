@@ -18,6 +18,11 @@ SPEC_SCHEMA = {
     "properties": {
         "title": {"type": "string"},
         "hook": {"type": "string"},
+        # Hook taxonomy (R&D 4.8): typed hooks let the Editor critique the TYPE and the
+        # taste profile learn which types this audience rewards, not just verbatim quotes.
+        "hook_type": {"type": "string",
+                      "enum": ["question", "surprising_fact", "bold_claim",
+                               "whats_wrong_here", "myth_bust"]},
         "beats": {
             "type": "array",
             "minItems": 4,
@@ -39,7 +44,7 @@ SPEC_SCHEMA = {
         "description": {"type": "string"},
         "hashtags": {"type": "array", "minItems": 3, "maxItems": 8, "items": {"type": "string"}},
     },
-    "required": ["title", "hook", "beats", "payoff", "cta", "description", "hashtags"],
+    "required": ["title", "hook", "hook_type", "beats", "payoff", "cta", "description", "hashtags"],
     "additionalProperties": False,
 }
 
@@ -48,6 +53,8 @@ _SYSTEM = """You write scripts for ~60-second vertical science-history Shorts.
 Hard rules:
 - Total spoken words (hook + all beat narrations + payoff + cta) MUST be 130-155 words. Count them.
 - hook: max 12 words, no clickbait, opens a genuine curiosity gap, no "did you know".
+- hook_type: classify the hook honestly as question / surprising_fact / bold_claim /
+  whats_wrong_here / myth_bust, and write the hook so it genuinely fits that type.
 - Each beat narration: 1-2 short spoken sentences that advance the story. Conversational, vivid, precise.
 - payoff must keep the promise the hook made. cta is ONE soft line (follow/comment), never begging.
 - caption per beat: max 6 punchy on-screen words, not a transcript.
@@ -105,18 +112,37 @@ _ANGLES = [
 ]
 
 
+def _budget_violations(spec: ShortSpec) -> list[str]:
+    """Deterministic per-field word budgets (R&D 4.8): structure the prompt merely asks
+    for lives in CODE, mirroring the Visual Director's validator pattern. Trigger ranges
+    are looser than the prompt's targets so marginal drafts don't burn the one retry."""
+    v = []
+    hook_words = len(spec["hook"].split())
+    if hook_words > 12:
+        v.append(f"hook is {hook_words} words (max 12)")
+    for i, b in enumerate(spec["beats"]):
+        w = len(b["narration"].split())
+        if not 8 <= w <= 45:
+            v.append(f"beat {i} narration is {w} words (want roughly 15-40)")
+    total = len(narration_text(spec).split())
+    if not 110 <= total <= 170:
+        v.append(f"total spoken words {total} (target 130-155)")
+    return v
+
+
 def draft_candidates(topic: str, feedback: str = "", evidence_text: str = "", n: int = 3) -> list[ShortSpec]:
-    """N angle-varied candidates. Word-budget retry per candidate only when badly short."""
+    """N angle-varied candidates. One corrective retry per candidate when it breaks the
+    word budgets (was: only when badly short overall)."""
     out = []
     for i in range(n):
         angle_feedback = (_ANGLES[i % len(_ANGLES)] + " " + feedback).strip()
         spec = draft_spec(topic, angle_feedback, evidence_text)
-        words = len(narration_text(spec).split())
-        if words < 110:
+        problems = _budget_violations(spec)
+        if problems:
             spec = draft_spec(
                 topic,
-                f"{angle_feedback} Previous draft was only {words} spoken words; target 130-155. "
-                "Expand beats with concrete, evidence-backed detail.",
+                f"{angle_feedback} Previous draft broke the word budgets: {'; '.join(problems)}. "
+                "Fix every violation while keeping the story concrete and evidence-backed.",
                 evidence_text,
             )
         out.append(spec)

@@ -34,17 +34,23 @@ STYLE_PRESETS = {
                    "warm cinematic lighting, detailed environment, atmospheric depth"),
         "negative": "photo, photorealistic, 3d render, flat design, vector, blurry, text, numbers, watermark, deformed",
         "lora": 0.0,
+        # ckpt per preset (R&D 1.1): candidates downloaded, but the swap only lands after a
+        # same-seed A/B - point painterly at DreamShaper XL / cinematic at RealVisXL_V5.0_fp16
+        # once the A/B wins. Both verified openrail++ (docs/research/2026-08-03 section 9).
+        "ckpt": "sd_xl_base_1.0.safetensors",
     },
     "cinematic": {
         "suffix": (", cinematic film still, dramatic volumetric lighting, shallow depth of field, "
                    "highly detailed, moody atmosphere"),
         "negative": "cartoon, illustration, vector, flat design, anime, blurry, text, numbers, watermark, deformed, bad anatomy",
         "lora": 0.0,
+        "ckpt": "sd_xl_base_1.0.safetensors",
     },
-    "vector": {  # retired default, kept selectable (DD LoRA)
+    "vector": {  # retired default, kept selectable (DD LoRA was tuned on base - keep base here)
         "suffix": ", vector, complex details, outlines, flat design illustration, warm amber and deep navy palette, centered composition",
         "negative": "photo, photorealistic, 3d render, gradient, blurry, text, numbers, watermark, deformed",
         "lora": 0.65,
+        "ckpt": "sd_xl_base_1.0.safetensors",
     },
 }
 DEFAULT_STYLE = "painterly"
@@ -64,6 +70,25 @@ STEPS = 32
 USE_PAG = True
 PAG_SCALE = 3.0
 CFG = 4.0 if USE_PAG else 7.0
+# --- DARK FLAGS (R&D 2026-08-03; ship off, same-seed A/B ONE AT A TIME per report 7.8) ---
+# AYS (R&D 1.2): Align-Your-Steps sigmas via the SamplerCustomAdvanced path - ~20-step
+# quality at 10-12 steps (core nodes, verified present in this install 2026-08-04).
+# Composes with PAG (a model patch). Do NOT combine with distilled LoRAs.
+USE_AYS = False
+AYS_STEPS = 12
+# Hires-fix (R&D 1.3): low-denoise second pass at 1.5x latent + tiled VAE decode.
+# Crisper frames that survive Ken-Burns zoom. First flip re-tunes MIOpen kernels for the
+# new 1152x2016 shapes: expect ONE 30-60 min compile (RUNBOOK cache-wipe section).
+USE_HIRES = False
+HIRES_W, HIRES_H = 1152, 2016
+HIRES_STEPS = 12
+HIRES_DENOISE = 0.3
+
+
+def _pid_alive(pid: int) -> bool:
+    r = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+                       capture_output=True, text=True, check=False)
+    return str(pid) in (r.stdout or "")
 
 
 def _up(url: str, timeout: float = 3.0) -> bool:
@@ -123,11 +148,63 @@ def stop_comfy() -> None:
     subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, check=False)
 
 
+# DARK FLAG (R&D 6.4): release VRAM via POST /free instead of killing the process, keeping
+# the ZLUDA init + warm MIOpen state alive across phases (saves minutes per phase switch
+# and the Defender file-lock failure mode). torch's caching allocator may not return every
+# MB to the OS, so the VRAM gate below is mandatory - on failure we fall back to the kill.
+KEEP_COMFY_WARM = False
+_LLAMA_NEEDS_VRAM_MB = 6000  # Qwen3-4B Q4 + KV headroom; the 8 GB card must free this much
+
+
+def _free_comfy() -> bool:
+    """Ask ComfyUI to unload models + GC, then verify enough VRAM actually came back.
+    True = safe to start llama-server with the process still warm."""
+    try:
+        httpx.post(COMFY_BASE + "/free",
+                   json={"unload_models": True, "free_memory": True}, timeout=30)
+    except httpx.HTTPError:
+        return False
+    deadline = time.time() + 60
+    while time.time() < deadline:
+        try:
+            stats = httpx.get(COMFY_BASE + "/system_stats", timeout=10).json()
+            free_mb = min(d.get("vram_free", 0) for d in stats.get("devices", [{}])) / 2**20
+            if free_mb >= _LLAMA_NEEDS_VRAM_MB:
+                return True
+        except (httpx.HTTPError, ValueError):
+            return False
+        time.sleep(3)
+    return False
+
+
+def _model_ref() -> list:
+    """The model every sampler consumes: PAG patch when enabled, else the LoRA chain.
+    A function (not a frozen constant) so test-time toggling of USE_PAG keeps working."""
+    return ["pag", 0] if USE_PAG else ["lora", 0]
+
+
+def _ays_nodes(seed: int) -> dict:
+    """AYS first-pass via SamplerCustomAdvanced (R&D 1.2). Node keyed "sampler" so
+    cudnn_off/hires wiring is identical to the KSampler path; output index 0 is the
+    sampled latent (index 1 is denoised_output - unused). PAG composes unchanged."""
+    return {
+        "ays": {"class_type": "AlignYourStepsScheduler",
+                "inputs": {"model_type": "SDXL", "steps": AYS_STEPS, "denoise": 1.0}},
+        "ksel": {"class_type": "KSamplerSelect", "inputs": {"sampler_name": SAMPLER_NAME}},
+        "noise": {"class_type": "RandomNoise", "inputs": {"noise_seed": seed}},
+        "guider": {"class_type": "CFGGuider", "inputs": {
+            "model": _model_ref(), "positive": ["pos", 0], "negative": ["neg", 0], "cfg": CFG}},
+        "sampler": {"class_type": "SamplerCustomAdvanced", "inputs": {
+            "noise": ["noise", 0], "guider": ["guider", 0], "sampler": ["ksel", 0],
+            "sigmas": ["ays", 0], "latent_image": ["latent", 0]}},
+    }
+
+
 def _workflow(visual_prompt: str, seed: int, style: str = DEFAULT_STYLE) -> dict:
     preset = STYLE_PRESETS.get(style, STYLE_PRESETS[DEFAULT_STYLE])
     return {
         "ckpt": {"class_type": "CheckpointLoaderSimple",
-                 "inputs": {"ckpt_name": "sd_xl_base_1.0.safetensors"}},
+                 "inputs": {"ckpt_name": preset.get("ckpt", "sd_xl_base_1.0.safetensors")}},
         # Style LoRA (TASK-011): Doctor Diffusion Controllable Vector Art v2. Commercial-image
         # use allowed, trained on CC0 images (cleanest provenance found). Trigger word "vector"
         # is present in STYLE_PREFIX; control words: "simple details"/"complex details"/"outlines".
@@ -145,17 +222,35 @@ def _workflow(visual_prompt: str, seed: int, style: str = DEFAULT_STYLE) -> dict
         # 32 steps renders noticeably cleaner shapes/edges than euler/20 on SDXL base.
         **({"pag": {"class_type": "PerturbedAttentionGuidance",
                     "inputs": {"model": ["lora", 0], "scale": PAG_SCALE}}} if USE_PAG else {}),
-        "sampler": {"class_type": "KSampler", "inputs": {
-            "model": ["pag", 0] if USE_PAG else ["lora", 0],
-            "positive": ["pos", 0], "negative": ["neg", 0],
-            "latent_image": ["latent", 0], "seed": seed, "steps": STEPS, "cfg": CFG,
-            "sampler_name": SAMPLER_NAME, "scheduler": SCHEDULER, "denoise": 1.0}},
+        # First pass: classic KSampler, or the custom-sampler path with AYS sigmas (both
+        # end in a node keyed "sampler" so the downstream wiring is identical).
+        **(_ays_nodes(seed) if USE_AYS else {
+            "sampler": {"class_type": "KSampler", "inputs": {
+                "model": _model_ref(), "positive": ["pos", 0], "negative": ["neg", 0],
+                "latent_image": ["latent", 0], "seed": seed, "steps": STEPS, "cfg": CFG,
+                "sampler_name": SAMPLER_NAME, "scheduler": SCHEDULER, "denoise": 1.0}}}),
+        # Optional hires second pass (R&D 1.3): 1.5x latent upscale + low-denoise refine.
+        **({"hires_up": {"class_type": "LatentUpscale", "inputs": {
+                "samples": ["sampler", 0], "upscale_method": "bislerp",
+                "width": HIRES_W, "height": HIRES_H, "crop": "disabled"}},
+            "hires_sampler": {"class_type": "KSampler", "inputs": {
+                "model": _model_ref(), "positive": ["pos", 0], "negative": ["neg", 0],
+                "latent_image": ["hires_up", 0], "seed": seed, "steps": HIRES_STEPS,
+                "cfg": CFG, "sampler_name": SAMPLER_NAME, "scheduler": SCHEDULER,
+                "denoise": HIRES_DENOISE}}} if USE_HIRES else {}),
         # RDNA1 fix: VAE decode dies with "GET was unable to find an engine" when cudnn is
         # enabled (documented in SETUP-COMFYUI.md). The CFZ toggle node disables cudnn and
         # passes the latent through; index 2 of its outputs is the latent.
         "cudnn_off": {"class_type": "CUDNNToggleAutoPassthrough", "inputs": {
-            "latent": ["sampler", 0], "enable_cudnn": False, "cudnn_benchmark": False}},
-        "decode": {"class_type": "VAEDecode", "inputs": {"samples": ["cudnn_off", 2], "vae": ["vae", 0]}},
+            "latent": ["hires_sampler" if USE_HIRES else "sampler", 0],
+            "enable_cudnn": False, "cudnn_benchmark": False}},
+        # Tiled decode caps VAE VRAM at the hires resolution (the miopenStatusUnknownError
+        # risk SETUP-COMFYUI warns about); plain decode stays for the unchanged 768x1344 path.
+        "decode": ({"class_type": "VAEDecodeTiled", "inputs": {
+                        "samples": ["cudnn_off", 2], "vae": ["vae", 0], "tile_size": 512,
+                        "overlap": 64, "temporal_size": 64, "temporal_overlap": 8}}
+                   if USE_HIRES else
+                   {"class_type": "VAEDecode", "inputs": {"samples": ["cudnn_off", 2], "vae": ["vae", 0]}}),
         "save": {"class_type": "SaveImage",
                  "inputs": {"images": ["decode", 0], "filename_prefix": "atelier-run"}},
     }
@@ -232,19 +327,43 @@ def render_beat_stills(prompts: list[str], run_assets_dir: str | pathlib.Path,
     root = pathlib.Path(repo_root)
     idx = indices if indices is not None else list(range(len(prompts)))
     sty = styles if styles is not None else [DEFAULT_STYLE] * len(prompts)
+    # Render lock, two jobs (both learned the hard way on 2026-08-04):
+    # 1. Tells the AtelierWatchdog (start-day.ps1 -IfOn, every 5 min) that llama is down
+    #    ON PURPOSE - without it the watchdog restarts the brain mid-render and SDXL
+    #    loses half its VRAM (observed: 49-min beat renders).
+    # 2. MUTEX between render drivers: two processes resuming the same run (bot + headless
+    #    CLI, or a stale gate-button click) interleaved duplicate jobs in ComfyUI until the
+    #    process died. A fresh lock owned by a LIVE other pid is a hard error.
+    # Refreshed per image so a crashed render goes stale (>80 min) and unblocks everything.
+    import os
+
+    lock = root / "state" / ".render-lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    if lock.exists():
+        age_min = (time.time() - lock.stat().st_mtime) / 60
+        owner = (lock.read_text(encoding="ascii").split("|") + [""])[1]
+        alive = owner.isdigit() and _pid_alive(int(owner))
+        if age_min < 80 and alive and int(owner) != os.getpid():
+            raise RuntimeError(
+                f"another process (pid {owner}) is already rendering - refusing to "
+                "double-drive the GPU. If that render is dead, delete state/.render-lock.")
+    lock.write_text(f"{time.strftime('%Y-%m-%dT%H:%M:%S')}|{os.getpid()}", encoding="ascii")
     stop_llama()
     time.sleep(3)
-    if not start_comfy():
-        start_llama(root)
-        raise RuntimeError("ComfyUI failed to start (see docs/SETUP-COMFYUI.md)")
     try:
+        if not start_comfy():
+            raise RuntimeError("ComfyUI failed to start (see docs/SETUP-COMFYUI.md)")
         paths = []
         for i, prompt, style in zip(idx, prompts, sty, strict=True):
+            lock.write_text(f"{time.strftime('%Y-%m-%dT%H:%M:%S')}|{os.getpid()}",
+                            encoding="ascii")
             out = assets / f"beat_{i:02d}.png"
             _render_one(prompt, base_seed + i, out, style)
             paths.append(str(out))
         return paths
     finally:
-        stop_comfy()
+        lock.unlink(missing_ok=True)
+        if not (KEEP_COMFY_WARM and _free_comfy()):
+            stop_comfy()
         time.sleep(3)
         start_llama(root)

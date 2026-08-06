@@ -2,6 +2,68 @@
 
 Notable changes, newest first. Keep entries short; link tasks (`TASK-###`) and ADRs where relevant.
 
+## 2026-08-06 - The studio never auto-starts after a reboot (TASK-036)
+- **Owner demand**: no more self-starting after reboots/power cuts. `state\.studio-on` is now
+  boot-session-scoped: start-day stamps it with the current boot id, the watchdog honors it only
+  while that boot id matches, and a stale marker is deleted on sight. `./start-day.ps1` is the
+  single manual command that starts the studio; within-session crash healing is unchanged.
+  Verified live (stale marker -> deleted, nothing started). Marker/lock/log files untracked.
+- Laptop patch TASK-032..035 applied: 14 files clean, 3 hand-merged with the 2026-08-04 studio-box
+  work (render-lock mutex, resume-reuse, abs paths, per-preset ckpt). Full validation matrix green.
+
+## 2026-08-06 - Cut-ins, script-text captions, dark render flags, ops batch (TASK-035)
+- **Cut-ins (ON)**: segments >=6s get a second shot - an upper-biased 62% crop-reframe of the
+  same approved still - halving the visual-change interval for free (R&D 7.1). Archival
+  letterboxed frames excluded. Found+fixed while in there: Ken-Burns scale was hardcoded to
+  768x1344, over-zooming 1080x1920 archival frames 1.4x and cropping the letterbox.
+- **Script-text captions (ON)**: words.json now carries the SCRIPT's spelling on whisper's
+  timings (difflib alignment; ASR hallucinations dropped, missed words squeeze into gaps);
+  raw ASR kept in words_asr.json. Kills caption misspellings of science terms (R&D 7.3).
+- **Dark flags in visuals.py** (ship OFF; same-seed A/B one at a time per R&D 7.8): USE_AYS
+  (12-step Align-Your-Steps first pass), USE_HIRES (1.5x latent second pass + tiled VAE),
+  KEEP_COMFY_WARM (`POST /free` + VRAM gate instead of process kill). Node signatures
+  verified against upstream ComfyUI source. SEG/FDG/NAG guidance flag deliberately NOT
+  shipped: the pack's node names differ between installed version and master - identify
+  them in the local ComfyUI UI first (10-min studio-box task).
+- **Ops**: master.mp4 now carries bt709 color tags (R&D 7.4); `scripts/snapshot-caches.ps1`
+  snapshots/restores the ZLUDA/MIOpen/triton kernel caches (RUNBOOK section added).
+- Deferred from R&D 6.4: the overnight seed sweep (needs graph/bot integration + on-box test).
+
+## 2026-08-06 - Research-layer upgrades: primary sources, Wikidata year check, typed hooks (TASK-034)
+- **Primary-source adapters** (R&D 4.6, `tools/research.py`): Chronicling America via the loc.gov
+  JSON API (the legacy API died in 2025), Open Library book records, NASA ADS (dormant until the
+  free `ADS_API_TOKEN` is set in .env - see .env.example). Evidence pack reordered wikipedia ->
+  primary -> papers -> web with cap 10->14, so the cap trims searxng snippets, never the
+  DOI-bearing papers. Open Library + Wikidata live-tested; **loc.gov 403'd the dev network -
+  verify from the studio box once** (fail-soft: returns [] until then).
+- **Wikidata year cross-check** (R&D 4.5): deterministic, advisory-only off-by-1/2 date flags
+  (birth/death/discovery, CC0, keyless) against entities already identified upstream; they surface
+  as `uncertain` claims on the existing Gate 1 card - zero bot changes. Live-tested: flags
+  1846-vs-1845 for Röntgen, stays silent on exact matches.
+- **Typed hooks + word budgets in code** (R&D 4.8): `hook_type` enum in the spec schema (Editor
+  now sees and critiques the type; feeds taste consolidation), and `_budget_violations()` enforces
+  hook <=12 words / beat 8-45 / total 110-170 with the existing one-retry pattern. Hook budget
+  deliberately stays at the current editorial 12 words (the report's 7-word sub-2s option is an
+  owner decision - see report 4.8 correction on the pacing math).
+
+## 2026-08-06 - Audio review fixes + off-topic-image / missing-archival diagnosis (TASK-032/033)
+- **Review fixes on the TASK-030 batch**: `deesser` ran at its default intensity 0 (a verified
+  pass-through - it de-essed nothing), now `i=0.35`; voice chain gains the 0.3s `apad` tail
+  (R&D 5.3); ASS timestamps use integer centisecond math (float rounding could emit a malformed
+  `0:00:60.00`). Music-duck filtergraph verified legal end-to-end on synthetic audio, but it has
+  never run with a real track (assets/music/ is empty) - test once after adding a track.
+- **Off-topic images diagnosed** (user report: image subjects unrelated to the script): Visual
+  Director schema now forces EXACTLY one prompt per beat (minItems=1 allowed fewer -> the pad
+  silently shifted prompts onto wrong beats); system prompt gains a literal-first rule and
+  metaphors must reuse a concrete noun from the narration; an empty prompt can no longer reach
+  SDXL as a style-only "vacuum" render (topic-anchored fallback).
+- **Missing archival images diagnosed** (user report: none used despite the feature): the visuals
+  node overwrote `visual_prompt` with the Director's metaphor BEFORE CLIP scoring, so real
+  archival photos scored near-zero against metaphors and fell under the 0.28 threshold ->
+  silent SDXL fallback. Scoring now uses the writer's literal prompt (as calibrated), and every
+  per-beat decision/error lands in `assets/visual_plan.json` (both `except: pass` blocks now
+  leave a trace). **Verify on the studio box next run** - read visual_plan.json first.
+
 ## 2026-08-03 - R&D sweep verified + weekend batch: sync, karaoke captions, sound (TASK-030)
 - **Pipeline R&D sweep verified** (docs/research/2026-08-03-pipeline-rnd.md + its section 9 addendum):
   license claims re-checked at primary sources; three corrections (Orpheus ban stands on Meta's terms,
