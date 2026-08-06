@@ -83,6 +83,14 @@ USE_HIRES = False
 HIRES_W, HIRES_H = 1152, 2016
 HIRES_STEPS = 12
 HIRES_DENOISE = 0.3
+# Guidance-alternative node ids, read from the INSTALLED pack's NODE_CLASS_MAPPINGS
+# (2026-08-06, closes the TASK-035 identify-on-box TODO). NOTE: production PAG uses
+# ComfyUI CORE's "PerturbedAttentionGuidance" (comfy_extras/nodes_pag.py); the pack's
+# advanced variant is registered as plain "PerturbedAttention". For the future A/B:
+#   SEG "SmoothedEnergyGuidanceAdvanced" (model, scale=3.0, blur_sigma=-1, unet_block=middle)
+#   FDG "FrequencyDecoupledGuidance"     (model, strength_high=12.0)
+#   NAG "NormalizedAttentionGuidance" | TPG "TokenPerturbationGuidance"
+#   SWG "SlidingWindowGuidanceAdvanced"
 
 
 def _pid_alive(pid: int) -> bool:
