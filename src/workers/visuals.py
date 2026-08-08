@@ -139,6 +139,11 @@ def start_llama(repo_root: pathlib.Path) -> bool:
         [
             str(repo_root / LLAMA_EXE), "-m", str(_brain_model(repo_root)),
             "-ngl", "99", "-c", "16384", "-fa", "off", "--jinja",
+            # --reasoning off: Gemma 4 E4B spontaneously enters thinking mode on complex
+            # prompts and burns the whole max_tokens budget inside reasoning_content,
+            # returning EMPTY content (live failure 2026-08-08, run 349445). The pipeline
+            # needs deterministic budgets; harmless for non-thinking brains like Qwen-2507.
+            "--reasoning", "off",
             "--host", "127.0.0.1", "--port", "8080", "--threads", "6",
         ],
         creationflags=subprocess.CREATE_NO_WINDOW,

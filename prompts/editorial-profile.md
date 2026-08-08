@@ -38,3 +38,4 @@ _Last updated: 2026-08-02 (consolidated)._
 - 2026-08-08 | pick-idea | chose 'Phoenix Mars Lander Launch (2007)' from batch 20260804-f59939
 - 2026-08-08 | regen-feedback | 20260808-b176fe: Aim for 140 spoken words and add more details about the topic like some background and in depth details too
 - 2026-08-08 | approve | 20260808-b176fe: accepted the editor-recommended script
+- 2026-08-08 | pick-idea | chose 'Michelson-Morley Experiment and the Aether' from batch 20260808-bbc365

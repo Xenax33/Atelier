@@ -89,6 +89,7 @@ if (-not $llamaUp) {
     Start-Process -FilePath "$Root\bin\llama-b10092\llama-server.exe" -WorkingDirectory $Root -ArgumentList @(
         "-m", "`"$BrainModel`"",
         "-ngl", "99", "-c", "16384", "-fa", "off", "--jinja",
+        "--reasoning", "off",   # Gemma 4 thinking burns the token budget inside reasoning_content (see visuals.py note)
         "--host", "127.0.0.1", "--port", "8080", "--threads", "6"
     ) -WindowStyle Minimized
 }

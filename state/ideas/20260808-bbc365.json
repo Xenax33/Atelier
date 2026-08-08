@@ -1,0 +1,32 @@
+[
+ {
+  "topic": "Michelson-Morley Experiment and the Aether",
+  "pitch": "In the late 19th century, scientists attempted to detect the hypothetical 'luminiferous aether'\u2014the medium through which light traveled\u2014using a precise interferometer. Their null results ultimately challenged classical physics and paved the way for Einstein\u2019s theories.",
+  "hook_angle": "What if light needs a medium to travel, and how did a failed experiment rewrite physics?"
+ },
+ {
+  "topic": "Discovery of the Neutron",
+  "pitch": "The neutron was discovered in 1932, a particle that fundamentally redefined the nucleus of the atom. Its existence provided the key missing piece needed to understand radioactive decay and unlock nuclear energy.",
+  "hook_angle": "How did the discovery of a single, tiny particle completely change humanity's understanding of matter?"
+ },
+ {
+  "topic": "The H.L. Hunley and Underwater Archaeology",
+  "pitch": "The Confederate submarine H.L. Hunley sank in 1864, remaining undiscovered for over a century. Its subsequent recovery provided marine archaeologists with a pristine look into Civil War naval technology.",
+  "hook_angle": "What secrets did a ghost ship, buried deep beneath the sea, hold about the Civil War?"
+ },
+ {
+  "topic": "Radio Astronomy and Galactic Mapping",
+  "pitch": "Unlike visible light, radio waves can pass through cosmic dust clouds, allowing radio telescopes to map the structure of the entire Milky Way. These passive observations reveal the galaxy's hidden structures.",
+  "hook_angle": "How do scientists listen to the universe to map places we can never see?"
+ },
+ {
+  "topic": "STS-118 and the ISS Construction",
+  "pitch": "In 2007, Space Shuttle Endeavour conducted STS-118, a crucial mission focused on installing new components and conducting maintenance on the International Space Station. It was a complex ballet of orbital construction.",
+  "hook_angle": "What does it take to build a permanent laboratory in the vacuum of space?"
+ },
+ {
+  "topic": "The Quantum Eraser Experiment",
+  "pitch": "This mind-bending experiment demonstrates the bizarre nature of quantum mechanics, showing how measuring a particle's path can seemingly 'erase' its history, blurring the line between observation and reality.",
+  "hook_angle": "Can watching something change what it is, or is reality just a matter of observation?"
+ }
+]
