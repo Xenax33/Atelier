@@ -101,6 +101,9 @@ def draft_spec(topic: str, feedback: str = "", evidence_text: str = "") -> Short
         schema=SPEC_SCHEMA,
         schema_name="short_spec",
         temperature=0.8,
+        # The fattest schema in the pipeline, and the 160-175-word target plus a wordier
+        # brain (Gemma E4B) overran the old 1600 default mid-JSON (live 2026-08-08).
+        max_tokens=2600,
     )
 
 

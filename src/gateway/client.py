@@ -82,5 +82,10 @@ def chat_json(
             # Empty completion with HTTP 200: small models occasionally emit immediate EOS
             # even under grammar constraints (seen live 2026-07-29). Retry, slightly warmer.
             last_err = f"empty completion; finish_reason={choice.get('finish_reason')}"
-        body["temperature"] = min(1.0, (body.get("temperature") or 0.7) + 0.15)
+        if choice.get("finish_reason") == "length":
+            # Truncated mid-JSON: the model is wordier than the budget (Gemma E4B, live
+            # 2026-08-08). More heat won't help - more room will. Grow 60%, capped.
+            body["max_tokens"] = min(int(body["max_tokens"] * 1.6), 4800)
+        else:
+            body["temperature"] = min(1.0, (body.get("temperature") or 0.7) + 0.15)
     raise RuntimeError(f"gateway returned no usable JSON after 3 attempts: {last_err}")
