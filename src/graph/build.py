@@ -250,15 +250,28 @@ def visuals(state: ShortState) -> dict:
     used: list[dict] = []
     # Resume-friendly: a beat still that already exists in THIS run's assets was rendered
     # by an earlier attempt of this same run (same spec, same seeds) - reuse it instead of
-    # burning ~5 GPU-minutes again (2026-08-04: a crash on beat 5 of 5 cost a full re-render).
-    # Only for non-archival beats: archival ones must refetch so the license/credit metadata
-    # in archival_used stays complete.
+    # burning GPU-minutes again (2026-08-04: a crash on beat 5 of 5 cost a full re-render).
+    # Safe for non-archival beats, AND (2026-08-08) for archival-flagged beats whose
+    # previous attempt RECORDED a failed lookup in visual_plan.json - their png is plain
+    # SDXL, no credits at stake. Only status=used must refetch (archival_used metadata).
+    prev_plan: dict[int, dict] = {}
+    plan_file = assets / "visual_plan.json"
+    if plan_file.exists():
+        try:
+            prev_plan = {p["beat"]: p for p in json.loads(plan_file.read_text(encoding="utf-8"))}
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
     for i, b in enumerate(beats):
-        if not (b.get("archival_subject") or "").strip():
-            existing = assets / f"beat_{i:02d}.png"
-            if existing.exists():
-                paths[i] = str(existing)
-                plan[i]["reused"] = True
+        existing = assets / f"beat_{i:02d}.png"
+        if not existing.exists():
+            continue
+        subject = (b.get("archival_subject") or "").strip()
+        prev_status = (prev_plan.get(i, {}).get("archival") or {}).get("status", "")
+        if not subject or prev_status in ("no-candidates", "below-threshold", "error"):
+            paths[i] = str(existing)
+            plan[i]["reused"] = True
+            if prev_status:
+                plan[i]["archival"] = prev_plan[i]["archival"]
     for i, b in enumerate(beats):
         if paths[i] is not None:
             continue

@@ -376,14 +376,32 @@ def render_beat_stills(prompts: list[str], run_assets_dir: str | pathlib.Path,
     try:
         if not start_comfy():
             raise RuntimeError("ComfyUI failed to start (see docs/SETUP-COMFYUI.md)")
-        paths = []
-        for i, prompt, style in zip(idx, prompts, sty, strict=True):
+        # Render GROUPED BY CHECKPOINT, not in beat order: every ckpt switch stacks a
+        # second ~7 GB model into RAM (ComfyUI caches the old one) and under studio RAM
+        # load that is where ZLUDA dies (2/2 crashes on switch boundaries, 2026-08-08).
+        # Grouping caps it at one switch per run; a /free purge precedes each switch so
+        # the outgoing model leaves RAM before the incoming one loads.
+        order = sorted(range(len(idx)),
+                       key=lambda k: (STYLE_PRESETS.get(sty[k], STYLE_PRESETS[DEFAULT_STYLE])["ckpt"], idx[k]))
+        by_index: dict[int, str] = {}
+        prev_ckpt: str | None = None
+        for k in order:
+            i, prompt, style = idx[k], prompts[k], sty[k]
             lock.write_text(f"{time.strftime('%Y-%m-%dT%H:%M:%S')}|{os.getpid()}",
                             encoding="ascii")
+            ckpt = STYLE_PRESETS.get(style, STYLE_PRESETS[DEFAULT_STYLE])["ckpt"]
+            if prev_ckpt is not None and ckpt != prev_ckpt:
+                try:
+                    httpx.post(COMFY_BASE + "/free",
+                               json={"unload_models": True, "free_memory": True}, timeout=60)
+                    time.sleep(8)  # give the allocator a beat to actually return RAM
+                except httpx.HTTPError:
+                    pass
+            prev_ckpt = ckpt
             out = assets / f"beat_{i:02d}.png"
             _render_one(prompt, base_seed + i, out, style)
-            paths.append(str(out))
-        return paths
+            by_index[i] = str(out)
+        return [by_index[i] for i in idx]
     finally:
         lock.unlink(missing_ok=True)
         if not (KEEP_COMFY_WARM and _free_comfy()):
