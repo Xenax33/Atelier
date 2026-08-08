@@ -71,7 +71,12 @@ class AtelierBot(commands.Bot):
             ),
             colour=discord.Colour.green(),
         )
-        embed.add_field(name="Brain", value="Qwen3-4B-Instruct-2507 via llama.cpp Vulkan", inline=False)
+        import pathlib as _pl
+
+        embed.add_field(
+            name="Brain",
+            value=f"{_pl.Path(self.settings.brain_model_path).stem} via llama.cpp Vulkan",
+            inline=False)
         embed.add_field(name="Commands",
                         value="/ideas, /new-short, /status, /style, /consolidate-taste, /resume",
                         inline=False)

@@ -2,6 +2,20 @@
 
 Notable changes, newest first. Keep entries short; link tasks (`TASK-###`) and ADRs where relevant.
 
+## 2026-08-08 - True-60s word budgets + Gemma 4 E4B cleared for A/B (TASK-038)
+- **Under-60s videos diagnosed as a budget bug, not a model failure**: measured 2.90 spoken
+  words/sec means the old 130-155-word target produced 48-56s shorts. New target 160-175
+  (accept 150-190), beats ask 2-3 evidence-grounded sentences - length now buys detail.
+- **Gemma 4 E4B: license objection RESOLVED** - Gemma 4 (April 2026) is Apache 2.0; the old
+  Gemma Terms explicitly exclude it, so the TASK-012-era rejection applied to Gemma 3-class only.
+  Benchmarked on this box: loads clean on Vulkan/gfx1010, 42-51 tok/s, schema-JSON and tool
+  smoke pass, ~2x word-count adherence and detail density vs Qwen3-4B in identical probes.
+  Caveats logged (PLE wiring issue #22243, weaker tool calling). The 12B download is incomplete
+  and would not fit 8 GB - skipped.
+- **Brain is now config-swappable**: BRAIN_MODEL_PATH in .env drives config.py, the render
+  worker's llama restarts, gateway self-healing, and start-day.ps1. Default stays Qwen3-4B;
+  the A/B is one .env line + one production run judged at Gate 1.
+
 ## 2026-08-08 - A/B session: AYS-12 + per-style checkpoints adopted, hires rejected (TASK-037)
 - Same-seed matrix (8 renders + 2 combo verifications, timed): **AYS 12-step adopted** (2.6x
   faster, 118s vs ~315s, quality on par; 10 steps flatter - stays 12); **DreamShaper XL 1.0**

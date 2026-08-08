@@ -77,10 +77,17 @@ Write-Host "[atelier] boot sequence starting..." -ForegroundColor Cyan
 $llamaUp = $false
 try { $llamaUp = (Invoke-WebRequest -Uri "http://127.0.0.1:8080/health" -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200 } catch {}
 if (-not $llamaUp) {
+    # Brain model: BRAIN_MODEL_PATH in .env (same setting src/config.py reads); default Qwen3-4B.
+    $BrainModel = "$Root\models\Qwen3-4B-Instruct-2507-UD-Q4_K_XL.gguf"
+    $envMatch = Select-String -Path "$Root\.env" -Pattern '^BRAIN_MODEL_PATH=(.+)$' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($envMatch) {
+        $v = $envMatch.Matches[0].Groups[1].Value.Trim().Trim('"')
+        if ($v) { if ([System.IO.Path]::IsPathRooted($v)) { $BrainModel = $v } else { $BrainModel = Join-Path $Root $v } }
+    }
     # NOTE: paths under $Root contain a space ("Side Projects"); Start-Process -ArgumentList does NOT
     # quote arguments, so every path argument needs embedded quotes. (See RUNBOOK known failures.)
     Start-Process -FilePath "$Root\bin\llama-b10092\llama-server.exe" -WorkingDirectory $Root -ArgumentList @(
-        "-m", "`"$Root\models\Qwen3-4B-Instruct-2507-UD-Q4_K_XL.gguf`"",
+        "-m", "`"$BrainModel`"",
         "-ngl", "99", "-c", "16384", "-fa", "off", "--jinja",
         "--host", "127.0.0.1", "--port", "8080", "--threads", "6"
     ) -WindowStyle Minimized

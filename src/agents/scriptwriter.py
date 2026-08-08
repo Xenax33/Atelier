@@ -51,11 +51,15 @@ SPEC_SCHEMA = {
 _SYSTEM = """You write scripts for ~60-second vertical science-history Shorts.
 
 Hard rules:
-- Total spoken words (hook + all beat narrations + payoff + cta) MUST be 130-155 words. Count them.
+- Total spoken words (hook + all beat narrations + payoff + cta) MUST be 160-175 words. Count them.
+  (Calibrated 2026-08-08 against the real narration rate of 2.9 words/sec: 130-155 produced
+  48-56s videos; 160-175 lands the true ~60s target.)
 - hook: max 12 words, no clickbait, opens a genuine curiosity gap, no "did you know".
 - hook_type: classify the hook honestly as question / surprising_fact / bold_claim /
   whats_wrong_here / myth_bust, and write the hook so it genuinely fits that type.
-- Each beat narration: 1-2 short spoken sentences that advance the story. Conversational, vivid, precise.
+- Each beat narration: 2-3 short spoken sentences that advance the story with CONCRETE detail
+  from the evidence (a name, a place, a mechanism, a vivid specific) - never filler to hit the
+  word count. Conversational, vivid, precise.
 - payoff must keep the promise the hook made. cta is ONE soft line (follow/comment), never begging.
 - caption per beat: max 6 punchy on-screen words, not a transcript.
 - visual_prompt per beat: a concrete SDXL scene description of WHAT IS SHOWN (subject, setting, era,
@@ -122,11 +126,13 @@ def _budget_violations(spec: ShortSpec) -> list[str]:
         v.append(f"hook is {hook_words} words (max 12)")
     for i, b in enumerate(spec["beats"]):
         w = len(b["narration"].split())
-        if not 8 <= w <= 45:
-            v.append(f"beat {i} narration is {w} words (want roughly 15-40)")
+        if not 10 <= w <= 50:
+            v.append(f"beat {i} narration is {w} words (want roughly 20-45)")
     total = len(narration_text(spec).split())
-    if not 110 <= total <= 170:
-        v.append(f"total spoken words {total} (target 130-155)")
+    # 2026-08-08 recalibration: measured 2.90 spoken words/sec -> 160-175 words = ~60s video.
+    # The old 130-155 target (accept 110-170) shipped 48s shorts.
+    if not 150 <= total <= 190:
+        v.append(f"total spoken words {total} (target 160-175 for a true 60s video)")
     return v
 
 

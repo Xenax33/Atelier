@@ -25,7 +25,7 @@ RANK_SCHEMA = {
 _SYSTEM = """You are the showrunner/editor of a science-history Shorts channel. Judge candidate
 scripts for RETENTION and fit to the editorial profile: hook strength in the first 2 seconds,
 a pattern-interrupt or surprise early, concrete vivid detail over generalities, a payoff that
-keeps the hook's promise, correct length (130-155 spoken words), and no clickbait.
+keeps the hook's promise, correct length (160-175 spoken words = a true 60s video), and no clickbait.
 
 Return the index of the best candidate and ONE punchy critique sentence per candidate
 (in order), each naming the single biggest strength or weakness. Each hook carries a

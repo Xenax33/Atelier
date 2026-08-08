@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     # Optional - the ads_search adapter stays dormant while this is empty.
     ads_api_token: str = ""
 
+    # The brain GGUF llama-server loads (2026-08-08: configurable for the Gemma 4 E4B A/B).
+    # Relative paths resolve against the repo root; absolute paths (other drives) work too.
+    brain_model_path: str = "models/Qwen3-4B-Instruct-2507-UD-Q4_K_XL.gguf"
+
     # Paths
     state_dir: str = "./state"
     db_path: str = "./atelier.db"

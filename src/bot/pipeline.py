@@ -162,5 +162,5 @@ class PipelineRunner:
             else:
                 e.add_field(name="Fact-check", value=f"🟢 all {len(claims)} claims supported by evidence",
                             inline=False)
-        e.set_footer(text=f"{rid} | {words} spoken words (target 130-155)")
+        e.set_footer(text=f"{rid} | {words} spoken words (target 160-175 = ~60s)")
         return e

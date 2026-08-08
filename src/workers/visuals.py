@@ -21,8 +21,17 @@ import httpx
 COMFY_DIR = "F:\\ComfyUI-Zluda"
 COMFY_BASE = "http://127.0.0.1:8188"
 LLAMA_EXE = "bin\\llama-b10092\\llama-server.exe"
-LLAMA_MODEL = "models\\Qwen3-4B-Instruct-2507-UD-Q4_K_XL.gguf"
 LLAMA_BASE = "http://127.0.0.1:8080"
+
+
+def _brain_model(repo_root: pathlib.Path) -> pathlib.Path:
+    """The brain GGUF from settings (BRAIN_MODEL_PATH in .env); relative to repo root.
+    Configurable since 2026-08-08 for the Gemma 4 E4B A/B - gateway._ensure_brain and
+    start-day.ps1 use the same source of truth."""
+    from ..config import get_settings
+
+    p = pathlib.Path(get_settings().brain_model_path)
+    return p if p.is_absolute() else repo_root / p
 
 # Smart-routing style presets (user decision 2026-08-02, amends ADR-0008): painterly for
 # any scene with people (hides anatomy inconsistency, no realistic-person disclosure risk),
@@ -128,7 +137,7 @@ def start_llama(repo_root: pathlib.Path) -> bool:
         return True
     subprocess.Popen(
         [
-            str(repo_root / LLAMA_EXE), "-m", str(repo_root / LLAMA_MODEL),
+            str(repo_root / LLAMA_EXE), "-m", str(_brain_model(repo_root)),
             "-ngl", "99", "-c", "16384", "-fa", "off", "--jinja",
             "--host", "127.0.0.1", "--port", "8080", "--threads", "6",
         ],
