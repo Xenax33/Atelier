@@ -34,17 +34,17 @@ STYLE_PRESETS = {
                    "warm cinematic lighting, detailed environment, atmospheric depth"),
         "negative": "photo, photorealistic, 3d render, flat design, vector, blurry, text, numbers, watermark, deformed",
         "lora": 0.0,
-        # ckpt per preset (R&D 1.1): candidates downloaded, but the swap only lands after a
-        # same-seed A/B - point painterly at DreamShaper XL / cinematic at RealVisXL_V5.0_fp16
-        # once the A/B wins. Both verified openrail++ (docs/research/2026-08-03 section 9).
-        "ckpt": "sd_xl_base_1.0.safetensors",
+        # ckpt per preset (R&D 1.1): ADOPTED 2026-08-08 same-seed A/B - DreamShaper renders
+        # true painted light/texture where base gave flat comic outlines (and drops base's
+        # fake storybook frame). Both checkpoints verified openrail++ (research doc section 9).
+        "ckpt": "DreamShaperXL_1.0_fp16.safetensors",
     },
     "cinematic": {
         "suffix": (", cinematic film still, dramatic volumetric lighting, shallow depth of field, "
                    "highly detailed, moody atmosphere"),
         "negative": "cartoon, illustration, vector, flat design, anime, blurry, text, numbers, watermark, deformed, bad anatomy",
         "lora": 0.0,
-        "ckpt": "sd_xl_base_1.0.safetensors",
+        "ckpt": "RealVisXL_V5.0_fp16.safetensors",  # A/B 2026-08-08: photographic depth vs base's flat look
     },
     "vector": {  # retired default, kept selectable (DD LoRA was tuned on base - keep base here)
         "suffix": ", vector, complex details, outlines, flat design illustration, warm amber and deep navy palette, centered composition",
@@ -70,15 +70,16 @@ STEPS = 32
 USE_PAG = True
 PAG_SCALE = 3.0
 CFG = 4.0 if USE_PAG else 7.0
-# --- DARK FLAGS (R&D 2026-08-03; ship off, same-seed A/B ONE AT A TIME per report 7.8) ---
-# AYS (R&D 1.2): Align-Your-Steps sigmas via the SamplerCustomAdvanced path - ~20-step
-# quality at 10-12 steps (core nodes, verified present in this install 2026-08-04).
-# Composes with PAG (a model patch). Do NOT combine with distilled LoRAs.
-USE_AYS = False
+# AYS (R&D 1.2): ADOPTED 2026-08-08 after the same-seed A/B session - quality on par with
+# 32/karras at 2.6x the speed (118s vs ~315s warm), verified on base AND on both production
+# checkpoints. 10 steps was visibly flatter - keep 12. Composes with PAG (a model patch).
+# Do NOT combine with distilled LoRAs.
+USE_AYS = True
 AYS_STEPS = 12
-# Hires-fix (R&D 1.3): low-denoise second pass at 1.5x latent + tiled VAE decode.
-# Crisper frames that survive Ken-Burns zoom. First flip re-tunes MIOpen kernels for the
-# new 1152x2016 shapes: expect ONE 30-60 min compile (RUNBOOK cache-wipe section).
+# Hires-fix (R&D 1.3): REJECTED as-shipped in the 2026-08-08 A/B - heavy horizontal
+# smearing/ghosting across the whole frame (bislerp 1.5x + denoise 0.3 + tiled decode on
+# this ZLUDA stack). Keep OFF; revisit with higher denoise (0.4-0.5) / different upscale
+# method / non-tiled decode. The failed reference render: scratchpad ab/hires_painterly.
 USE_HIRES = False
 HIRES_W, HIRES_H = 1152, 2016
 HIRES_STEPS = 12

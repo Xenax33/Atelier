@@ -2,6 +2,16 @@
 
 Notable changes, newest first. Keep entries short; link tasks (`TASK-###`) and ADRs where relevant.
 
+## 2026-08-08 - A/B session: AYS-12 + per-style checkpoints adopted, hires rejected (TASK-037)
+- Same-seed matrix (8 renders + 2 combo verifications, timed): **AYS 12-step adopted** (2.6x
+  faster, 118s vs ~315s, quality on par; 10 steps flatter - stays 12); **DreamShaper XL 1.0**
+  is the painterly checkpoint (painted light vs flat outlines) and **RealVisXL V5.0** the
+  cinematic one (photographic depth) - both verified as a combined stack with AYS + PAG.
+- **Hires-fix rejected as-shipped** (frame-wide smearing on this ZLUDA stack); flag stays off
+  with retune notes. ADR-0008 amended. Warm render cost per beat is now ~2.1 min, was ~5.3.
+- Prep work: DreamShaper converted from diffusers shards to a verified single-file checkpoint;
+  installed guidance-alternative node ids documented (core PAG vs pack's PerturbedAttention).
+
 ## 2026-08-06 - The studio never auto-starts after a reboot (TASK-036)
 - **Owner demand**: no more self-starting after reboots/power cuts. `state\.studio-on` is now
   boot-session-scoped: start-day stamps it with the current boot id, the watchdog honors it only

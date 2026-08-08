@@ -21,6 +21,16 @@ diagrams/timelines. Never name real brands/channels in prompts (generic style de
 - **Semi-photoreal** - harder consistency, higher render time, more disclosure/likeness risk.
 - **Mixed per-video** - weaker brand consistency early; more prompt/LoRA management.
 
+## Amendment (2026-08-08): per-style checkpoints + AYS 12-step schedule adopted
+Same-seed A/B session (timings + verdicts in tasks/ledger TASK-037): painterly now renders on
+**DreamShaper XL 1.0** (true painted light/texture vs base's flat outlines) and cinematic on
+**RealVisXL V5.0** (photographic depth), both OpenRAIL++ (license-verified at source, research
+doc section 9); the retired vector preset stays on SDXL base (its LoRA was tuned there).
+Sampling switched to **Align-Your-Steps at 12 steps**: quality on par with 32/karras at 2.6x
+speed (~118s vs ~315s warm), verified independently AND combined with the new checkpoints.
+PAG stays on. Hires-fix was REJECTED as-shipped (frame-wide smearing) - flag stays off with
+retune notes in workers/visuals.py.
+
 ## Amendment (2026-08-02): smart-routed painterly/cinematic replaces flat-vector default
 User decision after a three-way same-seed style comparison: flat vector looked underrefined.
 New default: **painterly storybook** for any scene containing people (hides SDXL anatomy
